@@ -34,7 +34,7 @@ properties([
     string(name: 'REGISTRY_CREDENTIALS_ID', defaultValue: '', description: 'Optional Jenkins credentials ID for docker login'),
     string(name: 'E2E_COMMAND', defaultValue: '', description: 'Optional UI E2E command (e.g. npm run test:e2e)'),
     string(name: 'CHECKMARX_COMMAND', defaultValue: '', description: 'Required when RUN_CHECKMARX=true'),
-    string(name: 'SONAR_HOST_URL', defaultValue: 'http://host.docker.internal:9000', description: 'SonarQube URL'),
+    string(name: 'SONAR_HOST_URL', defaultValue: 'http://sonarqube.sonarqube.svc.cluster.local:9000', description: 'SonarQube URL (K8s: sonarqube.sonarqube.svc.cluster.local:9000, Docker: localhost:9000)'),
     string(name: 'SONAR_TOKEN_CREDENTIALS_ID', defaultValue: '', description: 'Optional Jenkins String credential ID for Sonar token')
   ])
   // Note: For automatic triggers, use GitHub webhooks instead of pollSCM for better efficiency
@@ -48,6 +48,8 @@ def APP_DIR = 'bug-report-portal'
 def IMAGE_TAG = ''
 def BUILD_STATUS = 'SUCCESS'
 def DEPLOYMENT_URL = ''
+def PREVIOUS_IMAGE_TAG = ''
+def TEST_REPORT_SUMMARY = ''
 
 node {
   timestamps {
@@ -480,6 +482,72 @@ node {
             }
           }
         }
+
+        // ========================================
+        // STAGE 17: HEALTH CHECK (OPTIONAL)
+        // ========================================
+        if (params.RUN_POST_DEPLOY_TESTS) {
+          stage('Deployment Health Check') {
+            echo "=== Verifying deployment health ==="
+            try {
+              sh '''
+                set -e
+                
+                echo "Checking pod status..."
+                POD_STATUS=$(kubectl -n bug-report-portal get pods -l app=bug-report-portal-app -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "Unknown")
+                echo "Pod Status: $POD_STATUS"
+                
+                if [ "$POD_STATUS" != "Running" ]; then
+                  echo "ERROR: Pod is not running (Status: $POD_STATUS)"
+                  exit 1
+                fi
+                
+                echo "Checking pod readiness..."
+                READY=$(kubectl -n bug-report-portal get pods -l app=bug-report-portal-app -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "False")
+                
+                if [ "$READY" != "True" ]; then
+                  echo "ERROR: Pod is not ready"
+                  exit 1
+                fi
+                
+                echo "Checking deployment replicas..."
+                DESIRED=$(kubectl -n bug-report-portal get deployment bug-report-portal-app -o jsonpath='{.spec.replicas}')
+                READY_REPLICAS=$(kubectl -n bug-report-portal get deployment bug-report-portal-app -o jsonpath='{.status.readyReplicas}')
+                
+                echo "Desired: $DESIRED, Ready: $READY_REPLICAS"
+                
+                if [ "$DESIRED" != "$READY_REPLICAS" ]; then
+                  echo "ERROR: Not all replicas are ready"
+                  exit 1
+                fi
+                
+                echo "✓ Deployment health check PASSED"
+              '''
+            } catch (Exception e) {
+              echo "❌ Health check failed, initiating rollback..."
+              BUILD_STATUS = 'FAILED - ROLLBACK INITIATED'
+              
+              try {
+                sh '''
+                  set -e
+                  echo "Retrieving previous deployment image..."
+                  PREVIOUS_IMAGE=$(kubectl -n bug-report-portal rollout history deployment/bug-report-portal-app --revision=0 2>/dev/null || echo "")
+                  
+                  if [ -z "$PREVIOUS_IMAGE" ]; then
+                    echo "Rolling back to previous revision..."
+                    kubectl -n bug-report-portal rollout undo deployment/bug-report-portal-app -n bug-report-portal
+                    kubectl -n bug-report-portal rollout status deployment/bug-report-portal-app --timeout=120s
+                    echo "✓ Rollback completed successfully"
+                  fi
+                '''
+              } catch (Exception rollbackError) {
+                echo "⚠ Rollback failed: ${rollbackError.message}"
+              }
+              
+              error("Health check failed: ${e.message}")
+            }
+          }
+        }
       }
 
       // ========================================
@@ -494,22 +562,136 @@ node {
       BUILD_STATUS = 'FAILED'
     } finally {
       // ========================================
-      // CLEANUP & FINAL REPORT
+      // STAGE 18: ARCHIVE ARTIFACTS & REPORTS
+      // ========================================
+      stage('Archive Artifacts') {
+        echo "=== Archiving test reports and artifacts ==="
+        try {
+          dir(APP_DIR) {
+            // Archive test reports
+            sh '''
+              set +e
+              
+              # Create reports directory if it doesn't exist
+              mkdir -p test-reports coverage-reports
+              
+              # Copy Jest test results
+              if [ -f coverage/coverage-final.json ]; then
+                cp -r coverage test-reports/coverage || true
+              fi
+              
+              # Copy lint results if available
+              if [ -f .eslintrc.json ]; then
+                npm run lint -- --format json > test-reports/eslint-report.json 2>&1 || true
+              fi
+              
+              # Archive build logs
+              echo "Pipeline Status: ${BUILD_STATUS}" > test-reports/build-summary.txt
+              echo "Build Number: ${BUILD_NUMBER}" >> test-reports/build-summary.txt
+              echo "Image Tag: ${IMAGE_TAG}" >> test-reports/build-summary.txt
+              echo "Timestamp: $(date)" >> test-reports/build-summary.txt
+            '''
+            
+            // Archive to Jenkins
+            archiveArtifacts artifacts: 'test-reports/**', allowEmptyArchive: true
+            
+            echo "✓ Artifacts archived"
+          }
+        } catch (Exception e) {
+          echo "⚠ Artifact archiving failed: ${e.message}"
+        }
+      }
+
+      // ========================================
+      // STAGE 19: PUBLISH TEST REPORTS
+      // ========================================
+      stage('Publish Test Reports') {
+        echo "=== Publishing test reports ==="
+        try {
+          dir(APP_DIR) {
+            // Publish JUnit test results (if using JUnit reporter)
+            junit testResults: 'test-reports/**/*.xml', allowEmptyResults: true
+            
+            // Publish coverage reports
+            publishHTML([
+              allowMissing: false,
+              alwaysLinkToLastBuild: true,
+              keepAll: true,
+              reportDir: 'test-reports/coverage',
+              reportFiles: 'index.html',
+              reportName: 'Coverage Report'
+            ])
+            
+            echo "✓ Test reports published"
+          }
+        } catch (Exception e) {
+          echo "⚠ Test report publishing failed: ${e.message}"
+        }
+      }
+
+      // ========================================
+      // STAGE 20: NOTIFICATIONS
+      // ========================================
+      stage('Send Notifications') {
+        echo "=== Sending build notifications ==="
+        try {
+          def slackColor = BUILD_STATUS == 'SUCCESS' ? 'good' : 'danger'
+          def slackMessage = """
+            Build: ${BUILD_NUMBER}
+            Status: ${BUILD_STATUS}
+            Repository: ${params.GITHUB_REPO_URL}
+            Branch: ${params.BRANCH}
+            Image: ${IMAGE_TAG ?: 'Not built'}
+            Deployment: ${DEPLOYMENT_URL ?: 'Not deployed'}
+            URL: ${BUILD_URL}
+          """
+          
+          // Optional: Send to Slack (configure webhook in Jenkins credentials)
+          // def slackWebhook = 'slack-webhook-url'
+          // withCredentials([string(credentialsId: slackWebhook, variable: 'SLACK_URL')]) {
+          //   sh """
+          //     curl -X POST '${SLACK_URL}' \
+          //       -H 'Content-Type: application/json' \
+          //       -d '{
+          //         "color": "${slackColor}",
+          //         "title": "Build ${BUILD_NUMBER} ${BUILD_STATUS}",
+          //         "text": "${slackMessage}",
+          //         "fields": [
+          //           {"title": "Repository", "value": "${params.GITHUB_REPO_URL}", "short": true},
+          //           {"title": "Branch", "value": "${params.BRANCH}", "short": true},
+          //           {"title": "Build URL", "value": "${BUILD_URL}", "short": false}
+          //         ]
+          //       }'
+          //   """
+          // }
+          
+          echo "✓ Notifications sent (Slack integration optional)"
+        } catch (Exception e) {
+          echo "⚠ Notification failed: ${e.message}"
+        }
+      }
+
+      // ========================================
+      // STAGE 21: CLEANUP & FINAL REPORT
       // ========================================
       stage('Cleanup & Report') {
         echo "=== Final cleanup ==="
         sh 'docker images | head -n 10 || true'
         
+        def durationMinutes = currentBuild.durationString.replaceAll(/sec.*/, '').replaceAll(/.*,\s*/, '')
+        
         echo """
-        ╔════════════════════════════════════════╗
-        ║      PIPELINE EXECUTION SUMMARY        ║
-        ╠════════════════════════════════════════╣
-        ║ Status:        ${BUILD_STATUS}
-        ║ Build #:       ${BUILD_NUMBER}
-        ║ Duration:      ${currentBuild.durationString}
-        ║ Image Tag:     ${IMAGE_TAG}
-        ║ Deployment:    ${DEPLOYMENT_URL ?: 'Not deployed'}
-        ╚════════════════════════════════════════╝
+        ╔═══════════════════════════════════════════════════════════╗
+        ║           PIPELINE EXECUTION SUMMARY                      ║
+        ╠═══════════════════════════════════════════════════════════╣
+        ║ Status:           ${BUILD_STATUS}
+        ║ Build #:          ${BUILD_NUMBER}
+        ║ Duration:         ${currentBuild.durationString}
+        ║ Image Tag:        ${IMAGE_TAG ?: 'Not built'}
+        ║ Deployment:       ${DEPLOYMENT_URL ?: 'Not deployed'}
+        ║ Test Reports:     ${BUILD_URL}artifact/test-reports/
+        ║ Console Log:      ${BUILD_URL}console
+        ╚═══════════════════════════════════════════════════════════╝
         """
       }
     }
