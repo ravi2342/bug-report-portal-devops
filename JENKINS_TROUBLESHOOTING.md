@@ -46,7 +46,129 @@ Jenkins container cannot write to workspace directory. Usually happens when:
 
 ---
 
-## 🔑 Git Credentials Not Found
+## � Prisma Generation Error
+
+### Error Message
+```
+PrismaConfigEnvError: Cannot resolve environment variable: DATABASE_URL
+Failed to load config file ... as a TypeScript/JavaScript module
+```
+
+### Root Cause
+Prisma needs environment variables (like `DATABASE_URL`) to generate schema client. These are usually defined in a `.env` file that's not in the repo.
+
+### Solution
+
+1. **Create `.env` file in app repository root:**
+   ```bash
+   # bug-report-portal/.env (example)
+   DATABASE_URL="postgresql://user:password@localhost:5432/bug_report_db"
+   NODE_ENV="development"
+   ```
+
+2. **Option A: Add to Jenkinsfile (for development):**
+   ```groovy
+   stage('Prisma Generate') {
+     echo "=== Running Prisma generate ==="
+     try {
+       dir(APP_DIR) {
+         sh '''
+           # Set minimal env vars for Prisma if not present
+           if [ ! -f .env ]; then
+             echo "DATABASE_URL=postgresql://localhost/app" > .env
+           fi
+           npx prisma generate
+         '''
+       }
+     }
+   }
+   ```
+
+3. **Option B: Use Jenkins credentials (recommended for production):**
+   ```groovy
+   stage('Prisma Generate') {
+     withCredentials([string(credentialsId: 'database-url', variable: 'DB_URL')]) {
+       dir(APP_DIR) {
+         sh '''
+           export DATABASE_URL="${DB_URL}"
+           npx prisma generate
+         '''
+       }
+     }
+   }
+   ```
+
+4. **Store secret in Jenkins:**
+   - **Manage Jenkins** → **Credentials** → Add new **String** credential
+   - **ID:** `database-url`
+   - **Secret:** `postgresql://user:pass@host:5432/db`
+
+---
+
+## 🐳 Docker API Permission Denied
+
+### Error Message
+```
+permission denied while trying to connect to the docker API at unix:///var/run/docker.sock
+```
+
+### Root Cause
+Jenkins container can't access Docker socket. This happens when:
+- Docker socket volume not mounted in Jenkins container
+- Jenkins user doesn't have permissions to `/var/run/docker.sock`
+- Docker daemon not accessible from container
+
+### Solution
+
+#### For Docker Compose Setup:
+
+1. **Verify docker.sock is mounted in docker-compose.yml:**
+   ```yaml
+   jenkins:
+     image: jenkins/jenkins:lts
+     volumes:
+       - /var/run/docker.sock:/var/run/docker.sock  # ← THIS LINE REQUIRED
+       - jenkins_home:/var/jenkins_home
+     groups:
+       - docker  # Add to docker group
+   ```
+
+2. **Fix socket permissions (run on host):**
+   ```bash
+   sudo chmod 666 /var/run/docker.sock
+   ```
+
+3. **Add jenkins user to docker group in container:**
+   ```bash
+   docker exec <jenkins-container-id> usermod -aG docker jenkins
+   ```
+
+4. **Restart Jenkins:**
+   ```bash
+   docker restart <jenkins-container-id>
+   ```
+
+#### For Kubernetes Setup:
+
+Use Docker-in-Docker (DinD) sidecar or privileged container:
+
+```yaml
+spec:
+  containers:
+  - name: jenkins
+    image: jenkins/jenkins:lts
+    securityContext:
+      privileged: true
+    volumeMounts:
+    - name: docker-sock
+      mountPath: /var/run/docker.sock
+  volumes:
+  - name: docker-sock
+    hostPath:
+      path: /var/run/docker.sock
+```
+
+---
 
 ### Error Message
 ```
