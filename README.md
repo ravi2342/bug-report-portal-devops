@@ -11,6 +11,8 @@ CI/CD pipeline configurations and Kubernetes deployment manifests.
 | File | Purpose |
 |------|---------|
 | **Jenkinsfile** | CI/CD pipeline automation |
+| **JENKINS_BUILD_PARAMETERS.md** | Pipeline parameters reference |
+| **JENKINS_TROUBLESHOOTING.md** | Common errors and solutions |
 | **k8s/** | Kubernetes manifests (namespace, configmap, secret, deployments, services, ingress) |
 | **sonar-project.properties** | SonarQube code quality config |
 | **Dockerfile.jenkins** | Jenkins agent image |
@@ -46,6 +48,18 @@ Build parameters control pipeline behavior:
 - `RUN_SONAR` - Run code quality scan
 
 See [JENKINS_BUILD_PARAMETERS.md](JENKINS_BUILD_PARAMETERS.md) for complete list.
+
+---
+
+## 🔧 Troubleshooting
+
+For common Jenkins pipeline errors and solutions, see [JENKINS_TROUBLESHOOTING.md](JENKINS_TROUBLESHOOTING.md)
+
+Common issues:
+- Docker workspace permission errors
+- Git credentials not found
+- SonarQube connection failures
+- Kubernetes deployment timeouts
 
 ---
 
