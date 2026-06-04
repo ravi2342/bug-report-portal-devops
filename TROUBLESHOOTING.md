@@ -94,16 +94,20 @@ docker compose logs sonarqube | tail -50
 
 ### Check Databases Created
 ```bash
-docker compose exec -T postgres-db psql -U postgres -c "SELECT datname FROM pg_database WHERE datname IN ('sonarqube', 'bugreportportal');"
+docker compose exec -T postgres-db psql -U postgres -c "SELECT datname FROM pg_database;"
 ```
 
-**Expected output:**
+**Expected output (SonarQube database only):**
 ```
   datname
------------------
+-----------
  sonarqube
- bugreportportal
+ postgres
+ template0
+ template1
 ```
+
+Note: Only `sonarqube` database is used. Bug Report Portal uses its own PostgreSQL in Kubernetes.
 
 ### Check SonarQube Health
 ```bash
