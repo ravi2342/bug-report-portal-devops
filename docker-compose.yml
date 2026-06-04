@@ -1,5 +1,6 @@
 services:
-  # PostgreSQL database for SonarQube AND Bug Report Portal
+  # PostgreSQL database for SonarQube
+  # (Bug Report Portal app uses its own PostgreSQL in Kubernetes)
   postgres:
     image: postgres:16-alpine
     container_name: postgres-db
