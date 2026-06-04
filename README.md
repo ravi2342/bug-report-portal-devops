@@ -1,6 +1,6 @@
 # Bug Report Portal - DevOps Repository
 
-CI/CD pipeline configurations and Kubernetes deployment manifests.
+CI/CD pipeline automation and local development infrastructure.
 
 **App Repo:** [bugreportportal](https://github.com/ravi2342/bugreportportal)
 
@@ -10,44 +10,97 @@ CI/CD pipeline configurations and Kubernetes deployment manifests.
 
 | File | Purpose |
 |------|---------|
-| **Jenkinsfile** | CI/CD pipeline automation |
+| **docker-compose.yml** | Local CI/CD infrastructure (Jenkins, SonarQube, PostgreSQL) |
+| **Dockerfile.jenkins** | Jenkins agent with pre-installed toolchain |
+| **init-db.sh** | PostgreSQL database initialization |
+| **Jenkinsfile** | 21-stage CI/CD pipeline (scripted pipeline) |
 | **JENKINS_BUILD_PARAMETERS.md** | Pipeline parameters reference |
-| **JENKINS_TROUBLESHOOTING.md** | Common errors and solutions |
-| **k8s/** | Kubernetes manifests (namespace, configmap, secret, deployments, services, ingress) |
+| **CODE_REVIEW.md** | Complete architecture documentation |
+| **TROUBLESHOOTING.md** | Setup guide and troubleshooting |
 | **sonar-project.properties** | SonarQube code quality config |
-| **Dockerfile.jenkins** | Jenkins agent image |
+| **k8s/** | Kubernetes app deployment manifests |
 
 ---
 
-## 🚀 Quick Reference
+## 🚀 Quick Start
 
-### Local Testing (Docker)
+### Start Local CI/CD Stack
 ```bash
-cd bugreportportal
-docker compose up
-# http://localhost:3000
+docker compose up -d
+sleep 60
+docker compose ps
 ```
 
-### Local Kubernetes (Minikube)
-See [LOCAL_K8S_STEPS.md](LOCAL_K8S_STEPS.md)
+### Access Services
+- **Jenkins:** http://localhost:8080/jenkins
+- **SonarQube:** http://localhost:9000
+- **PostgreSQL:** localhost:5432
 
-### Production Kubernetes (EKS/AKS/GKE)
-See [PROD_K8S_STEPS.md](PROD_K8S_STEPS.md)
+### Get Jenkins Admin Password
+```bash
+docker compose exec -T jenkins cat /var/jenkins_home/secrets/initialAdminPassword
+```
 
-### CI/CD Pipeline Parameters
-See [JENKINS_BUILD_PARAMETERS.md](JENKINS_BUILD_PARAMETERS.md)
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for detailed setup and troubleshooting.
+
+---
+
+## 📚 Documentation
+
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Complete setup guide, common issues, verification steps
+- **[CODE_REVIEW.md](CODE_REVIEW.md)** - Architecture overview, parameter explanations
+- **[JENKINS_BUILD_PARAMETERS.md](JENKINS_BUILD_PARAMETERS.md)** - Pipeline parameters reference
 
 ---
 
 ## 🔄 Jenkins Pipeline
 
-Build parameters control pipeline behavior:
+**Type:** Scripted Pipeline (Groovy)  
+**Stages:** 21 stages from checkout to rollback  
+**Parameters:** 16 configurable parameters
+
+Control pipeline behavior with parameters:
 - `BRANCH` - Git branch to build
 - `DO_PUSH` - Push image to registry
 - `DO_DEPLOY` - Deploy to Kubernetes
-- `RUN_SONAR` - Run code quality scan
+- `RUN_SONAR` - Run SonarQube analysis
 
 See [JENKINS_BUILD_PARAMETERS.md](JENKINS_BUILD_PARAMETERS.md) for complete list.
+
+---
+
+## 🛠️ Services
+
+### Jenkins
+- **Image:** Custom build from Dockerfile.jenkins
+- **Tools:** Docker CLI, Node.js 20, npm, SonarScanner, Trivy
+- **Port:** 8080 (UI), 50000 (agent)
+
+### SonarQube
+- **Image:** sonarqube:lts-community
+- **Port:** 9000
+- **Database:** PostgreSQL (sonarqube db)
+
+### PostgreSQL
+- **Image:** postgres:16-alpine
+- **Port:** 5432
+- **Databases:** sonarqube, bugreportportal
+- **Credentials:** postgres/postgres
+
+---
+
+## 📝 Troubleshooting
+
+If services fail to start:
+```bash
+docker compose down -v
+docker compose build --no-cache
+docker compose up -d
+sleep 60
+docker compose ps
+```
+
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for common issues and solutions.
 
 ---
 
