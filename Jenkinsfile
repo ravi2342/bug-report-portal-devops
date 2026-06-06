@@ -387,6 +387,15 @@ node {
               echo "Setting kubectl context to Kind cluster..."
               kubectl config use-context kind-bug-report-portal
               
+              echo "Extracting Kind cluster server endpoint from kubeconfig..."
+              KUBE_SERVER=\$(kubectl config view -o jsonpath='{.clusters[?(@.name=="kind-bug-report-portal")].cluster.server}')
+              echo "Kind cluster server: \$KUBE_SERVER"
+              
+              if [[ -z "\$KUBE_SERVER" ]]; then
+                echo "ERROR: Could not extract Kind cluster server from kubeconfig"
+                exit 1
+              fi
+              
               echo "Checking Kind cluster connectivity..."
               kubectl --insecure-skip-tls-verify cluster-info
               
