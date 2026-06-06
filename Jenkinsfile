@@ -26,13 +26,11 @@ properties([
     string(name: 'GITHUB_REPO_URL', defaultValue: 'https://github.com/ravi2342/bugreportportal.git', description: 'GitHub application repository URL'),
     booleanParam(name: 'DO_PUSH', defaultValue: false, description: 'Push Docker image to registry'),
     booleanParam(name: 'DO_DEPLOY', defaultValue: false, description: 'Deploy to Kubernetes'),
-    booleanParam(name: 'RUN_CHECKMARX', defaultValue: false, description: 'Run Checkmarx SAST'),
     booleanParam(name: 'RUN_SONAR', defaultValue: false, description: 'Run SonarQube scan'),
     booleanParam(name: 'RUN_POST_DEPLOY_TESTS', defaultValue: false, description: 'Run smoke tests after deploy'),
     booleanParam(name: 'RUN_UI_E2E', defaultValue: false, description: 'Run UI E2E after smoke tests'),
     string(name: 'REGISTRY_CREDENTIALS_ID', defaultValue: 'dockerhub-creds-pat', description: 'Jenkins credentials ID for Docker Hub login'),
     string(name: 'E2E_COMMAND', defaultValue: '', description: 'Optional UI E2E command (e.g. npm run test:e2e)'),
-    string(name: 'CHECKMARX_COMMAND', defaultValue: '', description: 'Required when RUN_CHECKMARX=true'),
     string(name: 'SONAR_HOST_URL', defaultValue: 'http://sonarqube:9000', description: 'SonarQube URL (Docker Compose: sonarqube:9000, K8s: sonarqube.sonarqube.svc.cluster.local:9000)'),
     string(name: 'SONAR_TOKEN_CREDENTIALS_ID', defaultValue: 'sonar-token', description: 'Optional Jenkins String credential ID for Sonar token')
   ])
@@ -192,29 +190,7 @@ node {
         }
       }
 
-      // ========================================
-      // STAGE 7: CHECKMARX SAST (OPTIONAL)
-      // ========================================
-      if (params.RUN_CHECKMARX) {
-        stage('Checkmarx SAST') {
-          echo "=== Running Checkmarx SAST ==="
-          try {
-            if (!params.CHECKMARX_COMMAND?.trim()) {
-              error("RUN_CHECKMARX=true but CHECKMARX_COMMAND is empty")
-            }
-            
-            sh """
-              set -e
-              echo "Executing: ${params.CHECKMARX_COMMAND}"
-              ${params.CHECKMARX_COMMAND}
-            """
-            echo "✓ Checkmarx scan completed"
-          } catch (Exception e) {
-            BUILD_STATUS = 'FAILED'
-            error("Checkmarx scan failed: ${e.message}")
-          }
-        }
-      }
+
 
       // ========================================
       // STAGE 8: LINT (IF CONFIGURED)
