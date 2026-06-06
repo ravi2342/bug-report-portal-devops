@@ -44,6 +44,7 @@ properties([
 def IMAGE_TAG = ''
 def BUILD_STATUS = 'SUCCESS'
 def DEPLOYMENT_URL = ''
+def APP_URL = 'http://localhost:8888'
 def PREVIOUS_IMAGE_TAG = ''
 def TEST_REPORT_SUMMARY = ''
 
@@ -442,20 +443,55 @@ node {
               
               echo "Starting new port-forward in background..."
               nohup kubectl --context=kind-bug-report-portal port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000 > /tmp/portforward.log 2>&1 &
+              FORWARD_PID=$!
+              echo "Port-forward PID: $FORWARD_PID"
               
-              sleep 2
+              echo "Waiting for port-forward to establish..."
+              sleep 3
               
-              if curl -s http://127.0.0.1:8888/login > /dev/null 2>&1; then
-                echo "✓ Port-forward established successfully"
-                echo "✓ Application accessible at: http://localhost:8888"
-              else
-                echo "⚠ Port-forward started but app not responding yet (might still be starting up)"
-                echo "   Check again in a moment: http://localhost:8888"
+              echo "Checking port-forward status..."
+              if [ -s /tmp/portforward.log ]; then
+                echo "Port-forward log:"
+                cat /tmp/portforward.log
               fi
+              
+              # Retry loop: Give app up to 30 seconds to respond
+              MAX_ATTEMPTS=10
+              ATTEMPT=0
+              APP_PORT=8888
+              APP_HOST=localhost
+              while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+                ATTEMPT=$((ATTEMPT + 1))
+                echo "Connectivity check (attempt $ATTEMPT/$MAX_ATTEMPTS)..."
+                
+                if curl -s --connect-timeout 2 http://127.0.0.1:$APP_PORT/login > /dev/null 2>&1; then
+                  echo "✓ Port-forward established successfully"
+                  echo "✓ Application accessible at: http://$APP_HOST:$APP_PORT"
+                  echo "APP_URL=http://$APP_HOST:$APP_PORT" > /tmp/app_url.txt
+                  exit 0
+                fi
+                
+                if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
+                  echo "  App not ready yet, waiting 3 more seconds..."
+                  sleep 3
+                fi
+              done
+              
+              echo "⚠ Application still not responding after 30 seconds"
+              echo "   Possible reasons:"
+              echo "   1. Pod is still starting up"
+              echo "   2. Database connection pending"
+              echo "   3. Check pod logs: kubectl logs -n bug-report-portal deployment/bug-report-portal-app"
+              echo ""
+              echo "   Manual port-forward command:"
+              echo "   kubectl --context=kind-bug-report-portal port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000"
             '''
           } catch (Exception e) {
-            echo "⚠ Warning: Port-forward setup had an issue, but deployment succeeded"
-            echo "   You can manually run: kubectl port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000"
+            echo "⚠ Port-forward setup had an issue, but deployment succeeded"
+            echo "   Manual troubleshooting:"
+            echo "   1. kubectl get pods -n bug-report-portal"
+            echo "   2. kubectl logs -n bug-report-portal deployment/bug-report-portal-app"
+            echo "   3. kubectl --context=kind-bug-report-portal port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000"
           }
         }
 
@@ -696,9 +732,19 @@ node {
         echo "=== Final cleanup ==="
         sh 'docker images | head -n 10 || true'
         
-        def durationMinutes = currentBuild.durationString.replaceAll(/sec.*/, '').replaceAll(/.*,\s*/, '')
-        
-        echo """
+          // Load APP_URL from port-forward stage if available
+          try {
+            def appUrlFile = sh(script: 'cat /tmp/app_url.txt 2>/dev/null | cut -d= -f2', returnStdout: true).trim()
+            if (appUrlFile) {
+              APP_URL = appUrlFile
+            }
+          } catch (Exception e) {
+            // Use default if file not found
+          }
+          
+          def durationMinutes = currentBuild.durationString.replaceAll(/sec.*/, '').replaceAll(/.*,\s*/, '')
+          
+          echo """
         ╔═══════════════════════════════════════════════════════════╗
         ║           PIPELINE EXECUTION SUMMARY                      ║
         ╠═══════════════════════════════════════════════════════════╣
@@ -707,6 +753,7 @@ node {
         ║ Duration:         ${currentBuild.durationString}
         ║ Image Tag:        ${IMAGE_TAG ?: 'Not built'}
         ║ Deployment:       ${DEPLOYMENT_URL ?: 'Not deployed'}
+        ║ Application URL:  ${APP_URL}
         ║ Test Reports:     ${BUILD_URL}artifact/test-reports/
         ║ Console Log:      ${BUILD_URL}console
         ╚═══════════════════════════════════════════════════════════╝
