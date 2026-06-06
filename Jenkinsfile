@@ -35,7 +35,7 @@ properties([
     string(name: 'E2E_COMMAND', defaultValue: '', description: 'Optional UI E2E command (e.g. npm run test:e2e)'),
     string(name: 'CHECKMARX_COMMAND', defaultValue: '', description: 'Required when RUN_CHECKMARX=true'),
     string(name: 'SONAR_HOST_URL', defaultValue: 'http://sonarqube:9000', description: 'SonarQube URL (Docker Compose: sonarqube:9000, K8s: sonarqube.sonarqube.svc.cluster.local:9000)'),
-    string(name: 'SONAR_TOKEN_CREDENTIALS_ID', defaultValue: '', description: 'Optional Jenkins String credential ID for Sonar token')
+    string(name: 'SONAR_TOKEN_CREDENTIALS_ID', defaultValue: 'sonar-token', description: 'Optional Jenkins String credential ID for Sonar token')
   ])
   // Note: For automatic triggers, use GitHub webhooks instead of pollSCM for better efficiency
   // To enable webhook trigger: Jenkins > Job Config > Build Triggers > "GitHub hook trigger for GITScm polling"
