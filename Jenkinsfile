@@ -391,7 +391,7 @@ node {
               kubectl --insecure-skip-tls-verify cluster-info
               
               echo "Navigating to k8s manifests directory..."
-              cd k8s
+              cd devops/k8s
               
               echo "Setting Docker Hub image tag: ${IMAGE_TAG}"
               kustomize edit set image bugreportportal=${IMAGE_TAG}
