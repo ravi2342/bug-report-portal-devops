@@ -60,20 +60,38 @@ node {
       }
 
       // ========================================
-      // STAGE 2: CHECKOUT REPOSITORIES
+      // STAGE 2: CHECKOUT APPLICATION REPO
       // ========================================
-      stage('Checkout') {
+      stage('Checkout Application') {
         echo "=== Checking out application repository ==="
         try {
           sh """
             set -e
             echo "Cloning application repo: ${params.BRANCH} from ${params.GITHUB_REPO_URL}"
             git clone --branch ${params.BRANCH} ${params.GITHUB_REPO_URL} app
-            echo "Checkout completed successfully"
+            echo "✓ Application repository cloned"
           """
         } catch (Exception e) {
           BUILD_STATUS = 'FAILED'
-          error("Checkout failed: ${e.message}")
+          error("Application checkout failed: ${e.message}")
+        }
+      }
+
+      // ========================================
+      // STAGE 3: CHECKOUT DEVOPS REPO
+      // ========================================
+      stage('Checkout DevOps') {
+        echo "=== Checking out DevOps repository ==="
+        try {
+          sh """
+            set -e
+            echo "Cloning DevOps repo..."
+            git clone https://github.com/ravi2342/bug-report-portal-devops.git devops
+            echo "✓ DevOps repository cloned"
+          """
+        } catch (Exception e) {
+          BUILD_STATUS = 'FAILED'
+          error("DevOps checkout failed: ${e.message}")
         }
       }
 
@@ -253,21 +271,9 @@ node {
               if (sonarAvailable) {
                 sh """
                   set -e
-                  echo "Creating sonar-project.properties in app directory..."
-                  cat > app/sonar-project.properties << 'EOF'
-sonar.projectKey=bug-report-portal
-sonar.projectName=Bug Report Portal
-sonar.projectVersion=1.0
-
-sonar.sources=.
-sonar.exclusions=**/node_modules/**,**/uploads/**,**/data/**,**/prisma/migrations/**,.git/**,**/dist/**,**/build/**
-
-sonar.sourceEncoding=UTF-8
-EOF
-                  
                   echo "Starting SonarQube analysis..."
-                  cd app
                   sonar-scanner \\
+                    -Dsonar.projectBaseDir=devops \\
                     -Dsonar.host.url="${params.SONAR_HOST_URL}" \\
                     -Dsonar.token="${SONAR_TOKEN}" \\
                     -Dsonar.projectKey=bug-report-portal \\
