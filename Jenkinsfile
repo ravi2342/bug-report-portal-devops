@@ -44,7 +44,6 @@ properties([
 // ========================================
 // GLOBAL VARIABLES & INITIALIZATION
 // ========================================
-def APP_DIR = 'bug-report-portal'
 def IMAGE_TAG = ''
 def BUILD_STATUS = 'SUCCESS'
 def DEPLOYMENT_URL = ''
@@ -72,7 +71,7 @@ node {
           sh """
             set -e
             echo "Cloning application repo: ${params.BRANCH} from ${params.GITHUB_REPO_URL}"
-            git clone --branch ${params.BRANCH} ${params.GITHUB_REPO_URL} ${APP_DIR}
+            git clone --branch ${params.BRANCH} ${params.GITHUB_REPO_URL} .
             echo "Checkout completed successfully"
           """
         } catch (Exception e) {
@@ -87,24 +86,22 @@ node {
       stage('Build Metadata') {
         echo "=== Building metadata ==="
         try {
-          dir(APP_DIR) {
-            // Read registry from config file
-            def imageRegistry = readFile('.docker-registry').trim()
-            echo "Registry: ${imageRegistry}"
-            
-            // Extract version from package.json
-            def packageJson = readJSON file: 'package.json'
-            def appVersion = packageJson.version ?: 'unknown'
-            echo "App Version: ${appVersion}"
-            
-            // Extract repo name
-            def imageName = getImageNameFromUrl(params.GITHUB_REPO_URL)
-            echo "Image Name: ${imageName}"
-            
-            // Build full image tag
-            IMAGE_TAG = "${imageRegistry}/${imageName}:${appVersion}-${BUILD_NUMBER}"
-            echo "Full Image Tag: ${IMAGE_TAG}"
-          }
+          // Read registry from config file
+          def imageRegistry = readFile('.docker-registry').trim()
+          echo "Registry: ${imageRegistry}"
+          
+          // Extract version from package.json
+          def packageJson = readJSON file: 'package.json'
+          def appVersion = packageJson.version ?: 'unknown'
+          echo "App Version: ${appVersion}"
+          
+          // Extract repo name
+          def imageName = getImageNameFromUrl(params.GITHUB_REPO_URL)
+          echo "Image Name: ${imageName}"
+          
+          // Build full image tag
+          IMAGE_TAG = "${imageRegistry}/${imageName}:${appVersion}-${BUILD_NUMBER}"
+          echo "Full Image Tag: ${IMAGE_TAG}"
           
           // Set build display name
           currentBuild.displayName = "#${BUILD_NUMBER} - ${IMAGE_TAG}"
@@ -128,27 +125,25 @@ node {
       stage('Preflight Checks') {
         echo "=== Running preflight checks ==="
         try {
-          dir(APP_DIR) {
-            sh '''
-              set -e
-              echo "Checking required tools..."
-              echo "Node: $(node -v)"
-              echo "npm: $(npm -v)"
-              echo "Docker: $(docker --version)"
-              
-              # Check for required tools
-              if ! command -v docker >/dev/null 2>&1; then
-                echo "ERROR: docker not found"
-                exit 1
-              fi
-              
-              if ! command -v trivy >/dev/null 2>&1; then
-                echo "WARN: trivy not found - security scan will be skipped"
-              fi
-              
-              echo "✓ All critical tools available"
-            '''
-          }
+          sh '''
+            set -e
+            echo "Checking required tools..."
+            echo "Node: $(node -v)"
+            echo "npm: $(npm -v)"
+            echo "Docker: $(docker --version)"
+            
+            # Check for required tools
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "ERROR: docker not found"
+              exit 1
+            fi
+            
+            if ! command -v trivy >/dev/null 2>&1; then
+              echo "WARN: trivy not found - security scan will be skipped"
+            fi
+            
+            echo "✓ All critical tools available"
+          '''
         } catch (Exception e) {
           BUILD_STATUS = 'FAILED'
           error("Preflight checks failed: ${e.message}")
@@ -161,9 +156,7 @@ node {
       stage('Install Dependencies') {
         echo "=== Installing dependencies ==="
         try {
-          dir(APP_DIR) {
-            sh 'npm ci'
-          }
+          sh 'npm ci'
           echo "✓ Dependencies installed"
         } catch (Exception e) {
           BUILD_STATUS = 'FAILED'
@@ -177,24 +170,22 @@ node {
       stage('Prisma Generate') {
         echo "=== Running Prisma generate ==="
         try {
-          dir(APP_DIR) {
-            sh '''
-              set -e
-              
-              # Copy .env.docker.example to .env if .env doesn't exist
-              if [ ! -f .env ]; then
-                if [ -f .env.docker.example ]; then
-                  cp .env.docker.example .env
-                  echo "Created .env from .env.docker.example"
-                else
-                  echo "ERROR: Neither .env nor .env.docker.example found"
-                  exit 1
-                fi
+          sh '''
+            set -e
+            
+            # Copy .env.docker.example to .env if .env doesn't exist
+            if [ ! -f .env ]; then
+              if [ -f .env.docker.example ]; then
+                cp .env.docker.example .env
+                echo "Created .env from .env.docker.example"
+              else
+                echo "ERROR: Neither .env nor .env.docker.example found"
+                exit 1
               fi
-              
-              npx prisma generate
-            '''
-          }
+            fi
+            
+            npx prisma generate
+          '''
           echo "✓ Prisma schema generated"
         } catch (Exception e) {
           BUILD_STATUS = 'FAILED'
@@ -213,13 +204,11 @@ node {
               error("RUN_CHECKMARX=true but CHECKMARX_COMMAND is empty")
             }
             
-            dir(APP_DIR) {
-              sh """
-                set -e
-                echo "Executing: ${params.CHECKMARX_COMMAND}"
-                ${params.CHECKMARX_COMMAND}
-              """
-            }
+            sh """
+              set -e
+              echo "Executing: ${params.CHECKMARX_COMMAND}"
+              ${params.CHECKMARX_COMMAND}
+            """
             echo "✓ Checkmarx scan completed"
           } catch (Exception e) {
             BUILD_STATUS = 'FAILED'
@@ -234,18 +223,16 @@ node {
       stage('Lint') {
         echo "=== Running lint ==="
         try {
-          dir(APP_DIR) {
-            def haslint = sh(
-              script: "node -e \"const p=require('./package.json'); process.exit((p.scripts && p.scripts.lint) ? 0 : 1)\"",
-              returnStatus: true
-            ) == 0
-            
-            if (haslint) {
-              sh 'npm run lint'
-              echo "✓ Lint passed"
-            } else {
-              echo "⊘ No lint script configured - skipping"
-            }
+          def haslint = sh(
+            script: "node -e \"const p=require('./package.json'); process.exit((p.scripts && p.scripts.lint) ? 0 : 1)\"",
+            returnStatus: true
+          ) == 0
+          
+          if (haslint) {
+            sh 'npm run lint'
+            echo "✓ Lint passed"
+          } else {
+            echo "⊘ No lint script configured - skipping"
           }
         } catch (Exception e) {
           echo "⚠ Lint failed but continuing: ${e.message}"
@@ -258,18 +245,16 @@ node {
       stage('Run Tests') {
         echo "=== Running tests ==="
         try {
-          dir(APP_DIR) {
-            def hasTests = sh(
-              script: "node -e \"const p=require('./package.json'); process.exit((p.scripts && p.scripts.test && !p.scripts.test.includes('no test')) ? 0 : 1)\"",
-              returnStatus: true
-            ) == 0
-            
-            if (hasTests) {
-              sh 'npm test'
-              echo "✓ Tests passed"
-            } else {
-              echo "⊘ No test script configured - skipping"
-            }
+          def hasTests = sh(
+            script: "node -e \"const p=require('./package.json'); process.exit((p.scripts && p.scripts.test && !p.scripts.test.includes('no test')) ? 0 : 1)\"",
+            returnStatus: true
+          ) == 0
+          
+          if (hasTests) {
+            sh 'npm test'
+            echo "✓ Tests passed"
+          } else {
+            echo "⊘ No test script configured - skipping"
           }
         } catch (Exception e) {
           echo "⚠ Tests failed but continuing: ${e.message}"
@@ -284,29 +269,27 @@ node {
           echo "=== Running SonarQube analysis ==="
           try {
             withCredentials([string(credentialsId: params.SONAR_TOKEN_CREDENTIALS_ID, variable: 'SONAR_TOKEN')]) {
-              dir(APP_DIR) {
-                def sonarAvailable = sh(
-                  script: "command -v sonar-scanner >/dev/null 2>&1",
-                  returnStatus: true
-                ) == 0
-                
-                if (sonarAvailable) {
-                  sh """
-                    set -e
-                    echo "Starting SonarQube analysis..."
-                    sonar-scanner \\
-                      -Dsonar.host.url="${params.SONAR_HOST_URL}" \\
-                      -Dsonar.token="${SONAR_TOKEN}" \\
-                      -Dsonar.projectKey=bug-report-portal \\
-                      -Dsonar.qualitygate.wait=true \\
-                      -Dsonar.qualitygate.timeout=300
-                    
-                    echo "✓ Quality Gate PASSED"
-                    echo "View results at: ${params.SONAR_HOST_URL}/dashboard?id=bug-report-portal"
-                  """
-                } else {
-                  echo "⊘ sonar-scanner not installed - skipping Sonar scan"
-                }
+              def sonarAvailable = sh(
+                script: "command -v sonar-scanner >/dev/null 2>&1",
+                returnStatus: true
+              ) == 0
+              
+              if (sonarAvailable) {
+                sh """
+                  set -e
+                  echo "Starting SonarQube analysis..."
+                  sonar-scanner \\
+                    -Dsonar.host.url="${params.SONAR_HOST_URL}" \\
+                    -Dsonar.token="${SONAR_TOKEN}" \\
+                    -Dsonar.projectKey=bug-report-portal \\
+                    -Dsonar.qualitygate.wait=true \\
+                    -Dsonar.qualitygate.timeout=300
+                  
+                  echo "✓ Quality Gate PASSED"
+                  echo "View results at: ${params.SONAR_HOST_URL}/dashboard?id=bug-report-portal"
+                """
+              } else {
+                echo "⊘ sonar-scanner not installed - skipping Sonar scan"
               }
             }
           } catch (Exception e) {
@@ -322,9 +305,7 @@ node {
       stage('Build Docker Image') {
         echo "=== Building Docker image: ${IMAGE_TAG} ==="
         try {
-          dir(APP_DIR) {
-            sh "docker build -t ${IMAGE_TAG} -f ../Dockerfile .."
-          }
+          sh "docker build -t ${IMAGE_TAG} ."
           echo "✓ Docker image built successfully"
         } catch (Exception e) {
           BUILD_STATUS = 'FAILED'
@@ -467,13 +448,11 @@ node {
             stage('UI E2E Tests') {
               echo "=== Running UI E2E tests ==="
               try {
-                dir(APP_DIR) {
-                  sh """
-                    set -e
-                    echo "Executing: ${params.E2E_COMMAND}"
-                    ${params.E2E_COMMAND}
-                  """
-                }
+                sh """
+                  set -e
+                  echo "Executing: ${params.E2E_COMMAND}"
+                  ${params.E2E_COMMAND}
+                """
                 echo "✓ E2E tests passed"
               } catch (Exception e) {
                 BUILD_STATUS = 'FAILED'
@@ -567,36 +546,34 @@ node {
       stage('Archive Artifacts') {
         echo "=== Archiving test reports and artifacts ==="
         try {
-          dir(APP_DIR) {
-            // Archive test reports
-            sh '''
-              set +e
-              
-              # Create reports directory if it doesn't exist
-              mkdir -p test-reports coverage-reports
-              
-              # Copy Jest test results
-              if [ -f coverage/coverage-final.json ]; then
-                cp -r coverage test-reports/coverage || true
-              fi
-              
-              # Copy lint results if available
-              if [ -f .eslintrc.json ]; then
-                npm run lint -- --format json > test-reports/eslint-report.json 2>&1 || true
-              fi
-              
-              # Archive build logs
-              echo "Pipeline Status: ${BUILD_STATUS}" > test-reports/build-summary.txt
-              echo "Build Number: ${BUILD_NUMBER}" >> test-reports/build-summary.txt
-              echo "Image Tag: ${IMAGE_TAG}" >> test-reports/build-summary.txt
-              echo "Timestamp: $(date)" >> test-reports/build-summary.txt
-            '''
+          // Archive test reports
+          sh '''
+            set +e
             
-            // Archive to Jenkins
-            archiveArtifacts artifacts: 'test-reports/**', allowEmptyArchive: true
+            # Create reports directory if it doesn't exist
+            mkdir -p test-reports coverage-reports
             
-            echo "✓ Artifacts archived"
-          }
+            # Copy Jest test results
+            if [ -f coverage/coverage-final.json ]; then
+              cp -r coverage test-reports/coverage || true
+            fi
+            
+            # Copy lint results if available
+            if [ -f .eslintrc.json ]; then
+              npm run lint -- --format json > test-reports/eslint-report.json 2>&1 || true
+            fi
+            
+            # Archive build logs
+            echo "Pipeline Status: ${BUILD_STATUS}" > test-reports/build-summary.txt
+            echo "Build Number: ${BUILD_NUMBER}" >> test-reports/build-summary.txt
+            echo "Image Tag: ${IMAGE_TAG}" >> test-reports/build-summary.txt
+            echo "Timestamp: $(date)" >> test-reports/build-summary.txt
+          '''
+          
+          // Archive to Jenkins
+          archiveArtifacts artifacts: 'test-reports/**', allowEmptyArchive: true
+          
+          echo "✓ Artifacts archived"
         } catch (Exception e) {
           echo "⚠ Artifact archiving failed: ${e.message}"
         }
@@ -608,22 +585,14 @@ node {
       stage('Publish Test Reports') {
         echo "=== Publishing test reports ==="
         try {
-          dir(APP_DIR) {
-            // Publish JUnit test results (if using JUnit reporter)
-            junit testResults: 'test-reports/**/*.xml', allowEmptyResults: true
-            
-            // Publish coverage reports
-            publishHTML([
-              allowMissing: false,
-              alwaysLinkToLastBuild: true,
-              keepAll: true,
-              reportDir: 'test-reports/coverage',
-              reportFiles: 'index.html',
-              reportName: 'Coverage Report'
-            ])
-            
-            echo "✓ Test reports published"
-          }
+          // Publish JUnit test results (if using JUnit reporter)
+          junit testResults: 'test-reports/**/*.xml', allowEmptyResults: true
+          
+          // Archive coverage reports (publishHTML requires HTML Publisher plugin)
+          // To enable: Install "HTML Publisher" plugin in Jenkins
+          archiveArtifacts artifacts: 'test-reports/coverage/**', allowEmptyArchive: true
+          
+          echo "✓ Test reports published"
         } catch (Exception e) {
           echo "⚠ Test report publishing failed: ${e.message}"
         }
