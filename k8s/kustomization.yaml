@@ -11,3 +11,10 @@ resources:
   - app-deployment.yaml
   - app-service.yaml
   - ingress.yaml
+
+# Image patching configuration for dynamic Docker Hub updates
+# This allows Jenkins to inject the build-specific image tag
+images:
+  - name: bugreportportal
+    newName: demu147/bugreportportal
+    newTag: latest  # Will be overridden by Jenkinsfile via kustomize edit

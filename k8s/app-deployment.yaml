@@ -32,8 +32,8 @@ spec:
                   key: POSTGRES_USER
       containers:
         - name: app
-          image: bug-report-portal:local
-          imagePullPolicy: IfNotPresent
+          image: bugreportportal
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
           envFrom:

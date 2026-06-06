@@ -367,11 +367,11 @@ node {
               echo "Checking cluster connectivity..."
               kubectl cluster-info
               
-              echo "Applying Kubernetes manifests..."
-              kubectl apply -k devops/k8s
+              echo "Setting Docker Hub image tag: ${IMAGE_TAG}"
+              kustomize edit set image bugreportportal=${IMAGE_TAG}
               
-              echo "Updating deployment image..."
-              kubectl -n bug-report-portal set image deployment/bug-report-portal-app app=${IMAGE_TAG}
+              echo "Applying Kubernetes manifests with dynamic image..."
+              kubectl apply -k .
               
               echo "Waiting for rollout..."
               kubectl rollout status deployment/bug-report-portal-app -n bug-report-portal --timeout=120s
