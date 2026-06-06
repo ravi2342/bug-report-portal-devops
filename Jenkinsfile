@@ -271,9 +271,10 @@ node {
               if (sonarAvailable) {
                 sh """
                   set -e
-                  echo "Starting SonarQube analysis..."
+                  echo "Starting SonarQube analysis from devops directory..."
+                  cd devops
                   sonar-scanner \\
-                    -Dsonar.projectBaseDir=devops \\
+                    -Dsonar.branch.name=master \\
                     -Dsonar.host.url="${params.SONAR_HOST_URL}" \\
                     -Dsonar.token="${SONAR_TOKEN}" \\
                     -Dsonar.projectKey=bug-report-portal \\
