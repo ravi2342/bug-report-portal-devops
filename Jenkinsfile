@@ -30,8 +30,7 @@ properties([
     booleanParam(name: 'RUN_SONAR', defaultValue: false, description: 'Run SonarQube scan'),
     booleanParam(name: 'RUN_POST_DEPLOY_TESTS', defaultValue: false, description: 'Run smoke tests after deploy'),
     booleanParam(name: 'RUN_UI_E2E', defaultValue: false, description: 'Run UI E2E after smoke tests'),
-    string(name: 'REGISTRY_URL', defaultValue: '', description: 'Optional registry URL for docker login (leave empty for Docker Hub)'),
-    string(name: 'REGISTRY_CREDENTIALS_ID', defaultValue: 'dockerhub-creds-pat', description: 'Jenkins credentials ID for docker login'),
+    string(name: 'REGISTRY_CREDENTIALS_ID', defaultValue: 'dockerhub-creds-pat', description: 'Jenkins credentials ID for Docker Hub login'),
     string(name: 'E2E_COMMAND', defaultValue: '', description: 'Optional UI E2E command (e.g. npm run test:e2e)'),
     string(name: 'CHECKMARX_COMMAND', defaultValue: '', description: 'Required when RUN_CHECKMARX=true'),
     string(name: 'SONAR_HOST_URL', defaultValue: 'http://sonarqube:9000', description: 'SonarQube URL (Docker Compose: sonarqube:9000, K8s: sonarqube.sonarqube.svc.cluster.local:9000)'),
@@ -351,13 +350,8 @@ node {
               withCredentials([usernamePassword(credentialsId: params.REGISTRY_CREDENTIALS_ID, usernameVariable: 'REG_USER', passwordVariable: 'REG_PASS')]) {
                 sh """
                   set -e
-                  echo "Logging in to registry..."
-                  # For Docker Hub (default), don't pass registry URL - it defaults to docker.io
-                  if [ -z "${params.REGISTRY_URL}" ]; then
-                    echo "${REG_PASS}" | docker login -u "${REG_USER}" --password-stdin
-                  else
-                    echo "${REG_PASS}" | docker login -u "${REG_USER}" --password-stdin ${params.REGISTRY_URL}
-                  fi
+                  echo "Logging in to Docker Hub..."
+                  echo "${REG_PASS}" | docker login -u "${REG_USER}" --password-stdin
                   
                   echo "Pushing image: ${IMAGE_TAG}"
                   docker push ${IMAGE_TAG}
