@@ -385,6 +385,17 @@ node {
             
             sh """
               set -e
+              
+              echo "Creating temporary kubeconfig for Jenkins container..."
+              TEMP_KUBECONFIG="/tmp/kubeconfig-jenkins-\${BUILD_NUMBER}"
+              cp ~/.kube/config "\$TEMP_KUBECONFIG"
+              export KUBECONFIG="\$TEMP_KUBECONFIG"
+              echo "✓ Using temporary kubeconfig: \$TEMP_KUBECONFIG"
+              echo "✓ Original ~/.kube/config will remain unchanged"
+              
+              # Save temp kubeconfig path for port-forward stage
+              echo "\$TEMP_KUBECONFIG" > /tmp/temp_kubeconfig_path_\${BUILD_NUMBER}
+              
               echo "Setting kubectl context to Kind cluster..."
               kubectl config use-context kind-bug-report-portal
               
@@ -401,8 +412,9 @@ node {
               KUBE_SERVER=\$(echo "\$KUBE_SERVER" | sed 's|127.0.0.1|host.docker.internal|g')
               echo "Adjusted server for container: \$KUBE_SERVER"
               
-              echo "Updating kubeconfig with container-compatible address..."
-              kubectl config set-cluster kind-bug-report-portal --server="\$KUBE_SERVER" --kubeconfig=\$KUBECONFIG || true
+              echo "Updating temporary kubeconfig with container-compatible address..."
+              kubectl config set-cluster kind-bug-report-portal --server="\$KUBE_SERVER" || true
+              echo "✓ Temporary kubeconfig updated (original ~/.kube/config preserved)"
               
               echo "Checking Kind cluster connectivity..."
               kubectl --insecure-skip-tls-verify cluster-info
@@ -418,6 +430,9 @@ node {
               
               echo "Waiting for rollout..."
               kubectl --insecure-skip-tls-verify rollout status deployment/bug-report-portal-app -n bug-report-portal --timeout=120s
+              
+              echo "✓ Kubernetes deployment successful"
+              echo "✓ Temporary kubeconfig preserved for port-forward stage"
             """
             
             DEPLOYMENT_URL = "Deployed to Kind cluster"
@@ -434,64 +449,64 @@ node {
         stage('Setup Port-Forward') {
           echo "=== Setting up port-forward for browser access ==="
           try {
+            // Kill any existing port-forward processes
+            sh 'pkill -f "kubectl.*port-forward.*bug-report-portal-service" || true'
+            sh 'sleep 1'
+            
+            // Use temporary kubeconfig (created in Deploy stage)
             sh '''
               set -e
               
-              echo "Stopping any existing port-forward processes..."
-              pkill -f "kubectl.*port-forward.*bug-report-portal-service" || true
-              sleep 1
-              
-              echo "Starting new port-forward in background..."
-              nohup kubectl --context=kind-bug-report-portal port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000 > /tmp/portforward.log 2>&1 &
-              FORWARD_PID=$!
-              echo "Port-forward PID: $FORWARD_PID"
-              
-              echo "Waiting for port-forward to establish..."
-              sleep 3
-              
-              echo "Checking port-forward status..."
-              if [ -s /tmp/portforward.log ]; then
-                echo "Port-forward log:"
-                cat /tmp/portforward.log
+              # Load temp kubeconfig path from Deploy stage
+              if [ -f /tmp/temp_kubeconfig_path_${BUILD_NUMBER} ]; then
+                TEMP_KUBECONFIG=$(cat /tmp/temp_kubeconfig_path_${BUILD_NUMBER})
+                export KUBECONFIG="$TEMP_KUBECONFIG"
+                echo "✓ Using temporary kubeconfig: $TEMP_KUBECONFIG"
+              else
+                echo "✓ Using default kubeconfig"
               fi
               
-              # Retry loop: Give app up to 30 seconds to respond
-              MAX_ATTEMPTS=10
+              echo "Starting port-forward (listening on all interfaces for container accessibility)..."
+              nohup kubectl --context=kind-bug-report-portal port-forward --address 0.0.0.0 -n bug-report-portal svc/bug-report-portal-service 8888:3000 > ~/.kube/portforward.log 2>&1 &
+              PF_PID=$!
+              echo "✓ Port-forward started with PID: $PF_PID"
+              echo $PF_PID > ~/.kube/portforward.pid
+              
+              sleep 3
+              
+              # Give app time to respond
+              echo "Waiting for application to respond on localhost:8888..."
+              MAX_ATTEMPTS=15
               ATTEMPT=0
-              APP_PORT=8888
-              APP_HOST=localhost
+              
               while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
                 ATTEMPT=$((ATTEMPT + 1))
-                echo "Connectivity check (attempt $ATTEMPT/$MAX_ATTEMPTS)..."
                 
-                if curl -s --connect-timeout 2 http://127.0.0.1:$APP_PORT/login > /dev/null 2>&1; then
-                  echo "✓ Port-forward established successfully"
-                  echo "✓ Application accessible at: http://$APP_HOST:$APP_PORT"
-                  echo "APP_URL=http://$APP_HOST:$APP_PORT" > /tmp/app_url.txt
+                if curl -s --connect-timeout 2 http://localhost:8888/login > /dev/null 2>&1; then
+                  echo "✓ Application is responding!"
+                  echo "✓ Accessible at: http://localhost:8888"
+                  echo "APP_URL=http://localhost:8888" > /tmp/app_url.txt
                   exit 0
                 fi
                 
                 if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
-                  echo "  App not ready yet, waiting 3 more seconds..."
-                  sleep 3
+                  echo "  Attempt $ATTEMPT/$MAX_ATTEMPTS - app not ready yet, waiting 2 seconds..."
+                  sleep 2
                 fi
               done
               
-              echo "⚠ Application still not responding after 30 seconds"
-              echo "   Possible reasons:"
-              echo "   1. Pod is still starting up"
-              echo "   2. Database connection pending"
-              echo "   3. Check pod logs: kubectl logs -n bug-report-portal deployment/bug-report-portal-app"
+              echo "⚠ Application not responding after $(($MAX_ATTEMPTS * 2)) seconds"
               echo ""
-              echo "   Manual port-forward command:"
-              echo "   kubectl --context=kind-bug-report-portal port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000"
+              echo "Troubleshooting:"
+              echo "  1. Check pod status: kubectl get pods -n bug-report-portal"
+              echo "  2. Check pod logs: kubectl logs -n bug-report-portal deployment/bug-report-portal-app --tail=50"
+              echo "  3. Check port-forward log: cat ~/.kube/portforward.log"
+              echo "  4. Manually start: kubectl port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000"
             '''
           } catch (Exception e) {
-            echo "⚠ Port-forward setup had an issue, but deployment succeeded"
-            echo "   Manual troubleshooting:"
-            echo "   1. kubectl get pods -n bug-report-portal"
-            echo "   2. kubectl logs -n bug-report-portal deployment/bug-report-portal-app"
-            echo "   3. kubectl --context=kind-bug-report-portal port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000"
+            echo "⚠ Port-forward setup warning: ${e.message}"
+            echo "   Deployment succeeded, but port-forward may have issues"
+            echo "   Try manually: kubectl port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000"
           }
         }
 
@@ -731,6 +746,21 @@ node {
       stage('Cleanup & Report') {
         echo "=== Final cleanup ==="
         sh 'docker images | head -n 10 || true'
+        
+        // Clean up temporary kubeconfig and restore original for local kubectl access
+        sh '''
+          echo "Cleaning up temporary kubeconfig..."
+          rm -f /tmp/kubeconfig-jenkins-${BUILD_NUMBER}
+          rm -f /tmp/temp_kubeconfig_path_${BUILD_NUMBER}
+          echo "✓ Temporary kubeconfig removed"
+          
+          echo "Restoring original kubeconfig for local kubectl access..."
+          if [ -f ~/.kube/config ]; then
+            # Ensure 127.0.0.1 is used for local access (not host.docker.internal)
+            kubectl config set-cluster kind-bug-report-portal --server=https://127.0.0.1:65148 2>/dev/null || true
+            echo "✓ Kubeconfig restored with 127.0.0.1 for local access"
+          fi
+        '''
         
           // Load APP_URL from port-forward stage if available
           try {
