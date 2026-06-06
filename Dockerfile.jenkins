@@ -27,6 +27,5 @@ RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 USER jenkins
 
-# Disable plugin installation from update center to avoid network errors
 ENV JENKINS_SKIP_TLS_VERIFICATION=true
 ENV JENKINS_JAVA_OPTIONS="-Djenkins.install.runSetupWizard=false"
