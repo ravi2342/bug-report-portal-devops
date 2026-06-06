@@ -253,7 +253,11 @@ node {
               if (sonarAvailable) {
                 sh """
                   set -e
+                  echo "Copying sonar-project.properties to app directory..."
+                  cp sonar-project.properties app/
+                  
                   echo "Starting SonarQube analysis..."
+                  cd app
                   sonar-scanner \\
                     -Dsonar.host.url="${params.SONAR_HOST_URL}" \\
                     -Dsonar.token="${SONAR_TOKEN}" \\
