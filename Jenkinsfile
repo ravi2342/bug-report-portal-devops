@@ -467,7 +467,7 @@ node {
               fi
               
               echo "Starting port-forward (listening on all interfaces for container accessibility)..."
-              nohup kubectl --context=kind-bug-report-portal port-forward --address 0.0.0.0 -n bug-report-portal svc/bug-report-portal-service 8888:3000 > ~/.kube/portforward.log 2>&1 &
+              nohup kubectl --context=kind-bug-report-portal --insecure-skip-tls-verify port-forward --address 0.0.0.0 -n bug-report-portal svc/bug-report-portal-service 8888:3000 > ~/.kube/portforward.log 2>&1 &
               PF_PID=$!
               echo "✓ Port-forward started with PID: $PF_PID"
               echo $PF_PID > ~/.kube/portforward.pid
