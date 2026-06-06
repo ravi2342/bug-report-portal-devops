@@ -33,11 +33,41 @@ kubectl get all -n bug-report-portal
 ```
 
 ### 4️⃣ Start Port-Forward on macOS
+
+**Option A: Foreground (terminal stays open)**
 ```bash
-# Keep this terminal open!
 kubectl port-forward -n bug-report-portal \
   svc/bug-report-portal-service 8888:3000 \
   --insecure-skip-tls-verify
+```
+
+**Option B: Background with output file (Recommended)**
+```bash
+kubectl port-forward -n bug-report-portal \
+  svc/bug-report-portal-service 8888:3000 \
+  --insecure-skip-tls-verify > ~/.kube/portforward.log 2>&1 &
+```
+
+**Option C: Background with nohup (survives terminal close)**
+```bash
+nohup kubectl port-forward -n bug-report-portal \
+  svc/bug-report-portal-service 8888:3000 \
+  --insecure-skip-tls-verify > ~/.kube/portforward.log 2>&1 &
+```
+
+**Check if running:**
+```bash
+ps aux | grep "kubectl port-forward" | grep -v grep
+```
+
+**View logs:**
+```bash
+tail -f ~/.kube/portforward.log
+```
+
+**Stop port-forward:**
+```bash
+pkill -f "kubectl port-forward"
 ```
 
 ### 5️⃣ Access Application
@@ -113,12 +143,25 @@ cat JENKINS_BUILD_PARAMETERS.md
 ### 🔴 Port-forward not working
 ```bash
 # Check if port-forward running
-ps aux | grep "kubectl port-forward"
+ps aux | grep "kubectl port-forward" | grep -v grep
 
-# If not, restart it:
-kubectl port-forward -n bug-report-portal \
+# If not running, restart in background:
+nohup kubectl port-forward -n bug-report-portal \
   svc/bug-report-portal-service 8888:3000 \
-  --insecure-skip-tls-verify
+  --insecure-skip-tls-verify > ~/.kube/portforward.log 2>&1 &
+
+# View logs
+tail -f ~/.kube/portforward.log
+
+# If still failing, check pod is ready
+kubectl get pods -n bug-report-portal
+
+# Kill stuck port-forward and restart
+pkill -f "kubectl port-forward"
+sleep 2
+nohup kubectl port-forward -n bug-report-portal \
+  svc/bug-report-portal-service 8888:3000 \
+  --insecure-skip-tls-verify > ~/.kube/portforward.log 2>&1 &
 ```
 
 ### 🔴 Application not responding

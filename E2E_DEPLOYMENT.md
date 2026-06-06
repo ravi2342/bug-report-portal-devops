@@ -297,10 +297,107 @@ Forwarding from [::1]:8888 -> 3000
 
 **Terminal stays running:** Keep this terminal open. Port-forward must continue running while you use the application.
 
+---
+
+#### Option A: Run Port-Forward in Foreground (Default)
+
+Keep terminal open:
+```bash
+kubectl port-forward -n bug-report-portal \
+  svc/bug-report-portal-service 8888:3000 \
+  --insecure-skip-tls-verify
+```
+
+**Pros:** See real-time output, easy to stop (Ctrl+C)
+**Cons:** Terminal is occupied, can't use that terminal for other commands
+
+---
+
+#### Option B: Run Port-Forward in Background (Recommended)
+
+**Simplest - Using `&`:**
+```bash
+kubectl port-forward -n bug-report-portal \
+  svc/bug-report-portal-service 8888:3000 \
+  --insecure-skip-tls-verify &
+```
+
+**Better - Redirect output to file:**
+```bash
+kubectl port-forward -n bug-report-portal \
+  svc/bug-report-portal-service 8888:3000 \
+  --insecure-skip-tls-verify > ~/.kube/portforward.log 2>&1 &
+echo "Port-forward running in background!"
+```
+
+**Best - Using `nohup` (survives terminal close):**
+```bash
+nohup kubectl port-forward -n bug-report-portal \
+  svc/bug-report-portal-service 8888:3000 \
+  --insecure-skip-tls-verify > ~/.kube/portforward.log 2>&1 &
+echo "Port-forward started in background (PID: $!)"
+```
+
+**After starting in background:**
+```bash
+# Check if running
+ps aux | grep "kubectl port-forward" | grep -v grep
+
+# View logs
+tail -f ~/.kube/portforward.log
+
+# Stop port-forward
+pkill -f "kubectl port-forward"
+```
+
+---
+
+#### Option C: Quick Background Setup Script
+
+Add this to `~/.zshrc` or `~/.bash_profile`:
+
+```bash
+# Start port-forward in background
+pf-start() {
+  echo "Starting port-forward in background..."
+  nohup kubectl port-forward -n bug-report-portal \
+    svc/bug-report-portal-service 8888:3000 \
+    --insecure-skip-tls-verify > ~/.kube/portforward.log 2>&1 &
+  echo "✓ Port-forward started! (PID: $!)"
+  echo "View logs: tail -f ~/.kube/portforward.log"
+}
+
+# Stop port-forward
+pf-stop() {
+  echo "Stopping port-forward..."
+  pkill -f "kubectl port-forward"
+  echo "✓ Port-forward stopped!"
+}
+
+# Check status
+pf-status() {
+  if ps aux | grep -q "[k]ubectl port-forward"; then
+    echo "✓ Port-forward is RUNNING"
+    ps aux | grep "kubectl port-forward" | grep -v grep
+  else
+    echo "✗ Port-forward is NOT running"
+  fi
+}
+```
+
+**Then use:**
+```bash
+pf-start    # Start in background
+pf-status   # Check if running
+pf-stop     # Stop when done
+```
+
+---
+
 **Verification:**
 ```bash
 # In another terminal, verify connection
-curl -k https://localhost:8888/login
+curl -k http://localhost:8888/login
 
 # Should return: HTML login page (or similar response, not Connection refused)
 ```
