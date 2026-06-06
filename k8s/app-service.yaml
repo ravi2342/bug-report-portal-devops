@@ -4,9 +4,11 @@ metadata:
   name: bug-report-portal-service
   namespace: bug-report-portal
 spec:
+  type: NodePort
   selector:
     app: bug-report-portal-app
   ports:
     - name: http
       port: 3000
       targetPort: 3000
+      nodePort: 30000
