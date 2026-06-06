@@ -389,12 +389,19 @@ node {
               
               echo "Extracting Kind cluster server endpoint from kubeconfig..."
               KUBE_SERVER=\$(kubectl config view -o jsonpath='{.clusters[?(@.name=="kind-bug-report-portal")].cluster.server}')
-              echo "Kind cluster server: \$KUBE_SERVER"
+              echo "Original kubeconfig server: \$KUBE_SERVER"
               
-              if [[ -z "\$KUBE_SERVER" ]]; then
+              if [ -z "\$KUBE_SERVER" ]; then
                 echo "ERROR: Could not extract Kind cluster server from kubeconfig"
                 exit 1
               fi
+              
+              echo "Adjusting server address for Docker container access..."
+              KUBE_SERVER=\$(echo "\$KUBE_SERVER" | sed 's|127.0.0.1|host.docker.internal|g')
+              echo "Adjusted server for container: \$KUBE_SERVER"
+              
+              echo "Updating kubeconfig with container-compatible address..."
+              kubectl config set-cluster kind-bug-report-portal --server="\$KUBE_SERVER" --kubeconfig=\$KUBECONFIG || true
               
               echo "Checking Kind cluster connectivity..."
               kubectl --insecure-skip-tls-verify cluster-info
