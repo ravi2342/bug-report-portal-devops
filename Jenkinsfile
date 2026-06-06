@@ -351,7 +351,7 @@ node {
       // ========================================
       if (params.DO_DEPLOY) {
         stage('Deploy to Kubernetes') {
-          echo "=== Deploying to Kubernetes ==="
+          echo "=== Deploying to Kubernetes (Kind) ==="
           try {
             def kubectlAvailable = sh(
               script: "command -v kubectl >/dev/null 2>&1",
@@ -364,20 +364,26 @@ node {
             
             sh """
               set -e
-              echo "Checking cluster connectivity..."
-              kubectl cluster-info
+              echo "Setting kubectl context to Kind cluster..."
+              kubectl config use-context kind-bug-report-portal
+              
+              echo "Checking Kind cluster connectivity..."
+              kubectl --insecure-skip-tls-verify cluster-info
+              
+              echo "Navigating to k8s manifests directory..."
+              cd k8s
               
               echo "Setting Docker Hub image tag: ${IMAGE_TAG}"
               kustomize edit set image bugreportportal=${IMAGE_TAG}
               
               echo "Applying Kubernetes manifests with dynamic image..."
-              kubectl apply -k .
+              kubectl --insecure-skip-tls-verify apply -k .
               
               echo "Waiting for rollout..."
-              kubectl rollout status deployment/bug-report-portal-app -n bug-report-portal --timeout=120s
+              kubectl --insecure-skip-tls-verify rollout status deployment/bug-report-portal-app -n bug-report-portal --timeout=120s
             """
             
-            DEPLOYMENT_URL = "Deployed to cluster"
+            DEPLOYMENT_URL = "Deployed to Kind cluster"
             echo "✓ Kubernetes deployment successful"
           } catch (Exception e) {
             BUILD_STATUS = 'FAILED'
