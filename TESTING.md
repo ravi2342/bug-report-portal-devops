@@ -1,19 +1,41 @@
-# Testing Guide: Bug Report Portal CI/CD Pipeline
+# Testing Guide: Bug Report Portal CI/CD Pipeline with Kind
 
 ## Prerequisites
+
+### Required Tools
+Before starting, ensure you have both **Kind AND kubectl** installed:
+
+**Kind** - Creates Kubernetes clusters
+```bash
+brew install kind
+kind version
+# Output: kind v0.32.0 go1.23.2 darwin/arm64
+```
+
+**kubectl** - Interacts with Kubernetes clusters (REQUIRED by Kind)
+```bash
+brew install kubectl
+kubectl version --client
+# Output: Client Version: v1.33.1
+```
+
+**Why both are needed:**
+- Kind creates the cluster (server)
+- kubectl communicates with the cluster (client)
+- Without kubectl, you cannot deploy or manage applications
+
+### Other Prerequisites
 - Docker Desktop installed
-- Minikube installed
-- kubectl configured
 - Jenkins running via docker-compose
 - Git configured with GitHub credentials
 
 ---
 
-## Part 1: Local Kubernetes Setup (Minikube)
+## Part 1: Local Kubernetes Setup (Kind)
 
-### 1.1 Start Minikube
+### 1.1 Create Kind Cluster
 ```bash
-minikube start --driver=docker
+kind create cluster --name bug-report-portal --wait 2m
 ```
 
 **Verify:**
@@ -25,21 +47,35 @@ kubectl get nodes
 Expected output:
 ```
 Kubernetes control plane is running at https://127.0.0.1:xxxxx
-NAME       STATUS   ROLES           AGE   VERSION
-minikube   Ready    control-plane   Xs    v1.33.1
+NAME                              STATUS   ROLES           AGE   VERSION
+bug-report-portal-control-plane   Ready    control-plane   Xs    v1.36.1
 ```
 
-### 1.2 Create Kubernetes Namespace
+### 1.2 Create Kubernetes Resources (Automatic)
 ```bash
-kubectl create namespace bug-report-portal
+# Kustomize automatically creates the namespace + all resources
+kubectl apply -k k8s/
+```
+
+**What gets created automatically:**
+- Namespace: `bug-report-portal`
+- ConfigMap, Secret, PVC
+- PostgreSQL deployment + service
+- App deployment + service + ingress
+
+**No manual namespace creation needed** ✅ (unlike Minikube)
+
+**Verify:**
+```bash
 kubectl get namespaces
+kubectl get all -n bug-report-portal
 ```
 
 Expected output:
 ```
-NAME                STATUS   AGE
-bug-report-portal   Active   Xs
-default             Active   Xs
+NAME                 STATUS   AGE
+bug-report-portal    Active   Xs
+default              Active   Xs
 ...
 ```
 
@@ -47,35 +83,61 @@ default             Active   Xs
 
 ## Part 2: Jenkins Pipeline Configuration
 
-### 2.1 Configure Kubeconfig for Jenkins
+### 2.1 Understand & Configure Kubeconfig
 
-Jenkins runs in Docker and needs access to Minikube cluster.
+**What is Kubeconfig?**
+- Configuration file (`~/.kube/config`) that tells kubectl how to connect to Kubernetes
+- Contains cluster address, certificates, and user info
+- Kind creates it automatically when cluster is created
 
-**Option A: Copy kubeconfig to Jenkins container**
-```bash
-# Copy minikube kubeconfig to Jenkins
-docker cp ~/.kube/config jenkins:/var/jenkins_home/.kube/config
-
-# Verify in Jenkins
-docker exec jenkins cat /var/jenkins_home/.kube/config
+**Problem:** Kind cluster uses `127.0.0.1` (localhost), but Jenkins runs in Docker container:
+```
+127.0.0.1 on host machine ≠ 127.0.0.1 inside Docker container (different network!)
 ```
 
-**Option B: Configure Jenkins credentials**
-1. Go to **Jenkins UI** → Manage Jenkins → Manage Credentials
-2. Add credentials for Kubernetes API (if custom auth needed)
-3. For Minikube, local kubeconfig usually works out of the box
+**Solution:** Modify kubeconfig to use `host.docker.internal` instead:
 
-### 2.2 Verify Jenkins Can Access Kubernetes
 ```bash
-# SSH into Jenkins container
-docker exec -it jenkins bash
+# Step 1: Check current kubeconfig
+cat ~/.kube/config | grep "server:"
+# Output: server: https://127.0.0.1:65148  ← Problem!
 
-# Test kubectl connection
-kubectl cluster-info
-kubectl get namespaces
+# Step 2: Modify to use host.docker.internal
+kubectl config view --raw | sed 's/127\.0\.0\.1/host.docker.internal/g' > ~/.kube/config
+
+# Step 3: Verify change
+cat ~/.kube/config | grep "server:"
+# Output: server: https://host.docker.internal:65148  ← Fixed!
 ```
 
-Expected: Should see bug-report-portal namespace
+**Why docker-compose.yml mounts kubeconfig:**
+```yaml
+jenkins:
+  volumes:
+    - ~/.kube:/root/.kube:ro        # Mount modified kubeconfig
+  environment:
+    KUBECONFIG: /root/.kube/config  # Tell Jenkins where to find it
+```
+
+Now Jenkins container can:
+1. Read the modified kubeconfig file
+2. Find `host.docker.internal:65148` (the Kind cluster)
+3. Connect successfully! ✅
+
+**Verify from Jenkins:**
+```bash
+# Modify server address for Jenkins container access
+kubectl config view --raw | sed 's/127\.0\.0\.1/host.docker.internal/g' > ~/.kube/config
+```
+
+### 2.2 Verify Jenkins Can Access Kind
+```bash
+# Test from Jenkins container
+docker exec jenkins kubectl --insecure-skip-tls-verify cluster-info
+
+# Should output:
+# Kubernetes control plane is running at https://host.docker.internal:xxxxx
+```
 
 ---
 
@@ -93,8 +155,8 @@ Click **"Build with Parameters"** and set:
 | Parameter | Value | Purpose |
 |-----------|-------|---------|
 | `DO_PUSH` | `true` | Push Docker image to Docker Hub |
-| `DO_DEPLOY` | `true` | Deploy to Kubernetes cluster |
-| `RUN_SONAR` | `true` | Run SonarQube code analysis |
+| `DO_DEPLOY` | `true` | Deploy to Kind cluster |
+| `RUN_SONAR` | `false` | Skip SonarQube (optional, may timeout) |
 
 ![Build Parameters](./docs/build-params.png)
 
@@ -202,9 +264,9 @@ Visit: https://hub.docker.com/r/demu147/bugreportportal
 kubectl delete namespace bug-report-portal
 ```
 
-### 7.2 Stop Minikube
+### 7.2 Delete Kind Cluster
 ```bash
-minikube stop
+kind delete cluster --name bug-report-portal
 ```
 
 ### 7.3 Stop Jenkins (Optional)
@@ -216,20 +278,27 @@ docker-compose down
 
 ## Troubleshooting
 
-### Issue: kubectl cannot connect to Kubernetes
+### Issue: `kubectl cluster-info` fails from Jenkins container
+**Error:** "tls: failed to verify certificate: x509: certificate is valid for..."
+**Cause:** Kind certificates don't include `host.docker.internal` in SAN
 **Solution:**
 ```bash
-# Set kubeconfig path
-export KUBECONFIG=$HOME/.kube/config
-
-# Or specify in command
-kubectl --kubeconfig=$HOME/.kube/config get namespaces
+# Jenkins Jenkinsfile Deploy stage uses this flag:
+kubectl --insecure-skip-tls-verify cluster-info
+# This is acceptable for development/local testing
 ```
 
-### Issue: Image not pulling from Docker Hub
+### Issue: Pod ImagePullBackOff
+**Error:** Cannot pull image from Docker Hub
 **Solution:**
 ```bash
-# Create image pull secret (if repo is private)
+# Verify image was pushed
+docker pull demu147/bugreportportal:1.0.0-XX
+
+# Check image pull status
+kubectl describe pod -n bug-report-portal <POD_NAME>
+
+# If private repo, create docker-registry secret:
 kubectl create secret docker-registry dockerhub-secret \
   --docker-server=docker.io \
   --docker-username=demu147 \
@@ -238,16 +307,56 @@ kubectl create secret docker-registry dockerhub-secret \
   -n bug-report-portal
 ```
 
-Then update `app-deployment.yaml` to reference it:
-```yaml
-spec:
-  imagePullSecrets:
-    - name: dockerhub-secret
-```
-
-### Issue: Jenkins cannot access Minikube from Docker container
+### Issue: Jenkins cannot access Kind cluster
+**Error:** "couldn't get current server API group list"
+**Cause:** Kubeconfig server address not set to `host.docker.internal`
 **Solution:**
 ```bash
+# Update kubeconfig in docker-compose.yml volumes:
+volumes:
+  - ~/.kube:/root/.kube:ro
+
+# Update server address in ~/.kube/config:
+kubectl config set-cluster kind-bug-report-portal --server=https://host.docker.internal:PORT
+
+# Verify from Jenkins:
+docker exec jenkins kubectl --insecure-skip-tls-verify cluster-info
+```
+
+### Issue: Pod stuck in Init state
+**Error:** Application pod waiting for postgres
+**Solution:**
+```bash
+# Check init container logs
+kubectl logs -n bug-report-portal <POD_NAME> -c <INIT_CONTAINER_NAME>
+
+# Verify postgres is running
+kubectl get pods -n bug-report-portal | grep postgres
+
+# Wait for postgres
+kubectl wait --for=condition=Ready pod -l app=postgres -n bug-report-portal --timeout=300s
+```
+
+### Issue: SonarQube scan timeout (optional)
+**Cause:** JavaScript analysis can take 10+ minutes on first run
+**Solution:**
+```bash
+# Build with RUN_SONAR=false to skip:
+# Jenkins → Build with Parameters → RUN_SONAR=false → Build
+```
+
+### Issue: Want to return to Minikube later?
+**Note:** Minikube is no longer configured. If needed:
+```bash
+# Install Minikube
+brew install minikube
+
+# Start cluster
+minikube start --driver=docker
+
+# However, Jenkins cannot access Minikube from Docker Compose
+# (network isolation issue - use Kind instead)
+```
 # Check Jenkins kubeconfig location
 docker exec jenkins cat /var/jenkins_home/.kube/config
 

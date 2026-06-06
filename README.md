@@ -22,6 +22,60 @@ CI/CD pipeline automation and local development infrastructure with Docker Compo
 
 ---
 
+## 🎯 Prerequisites
+
+**For Kubernetes deployment (Kind cluster):**
+
+#### Step 1: Install kubectl & Kind
+```bash
+# Install kubectl (client tool - MUST be first)
+brew install kubectl
+kubectl version --client
+
+# Install Kind (cluster creator)
+brew install kind
+kind version
+```
+
+#### Step 2: Understand Kubeconfig
+**Kubeconfig** is a configuration file (`~/.kube/config`) that tells kubectl:
+- Where your Kubernetes cluster is located (IP address)
+- How to authenticate (certificates, tokens)
+- Which cluster to use by default
+
+**Why it matters:**
+- Kind creates kubeconfig automatically when cluster is created
+- We modify it to use `host.docker.internal` instead of `127.0.0.1`
+- This allows Jenkins container to access the cluster
+- Jenkins container mounts kubeconfig via docker-compose volume
+
+**Example kubeconfig:**
+```yaml
+clusters:
+  - name: kind-bug-report-portal
+    cluster:
+      server: https://host.docker.internal:65148  # Modified for Jenkins
+users:
+  - name: kind-bug-report-portal
+    user:
+      client-certificate: /Users/demu/.kube/...
+contexts:
+  - name: kind-bug-report-portal
+    context:
+      cluster: kind-bug-report-portal
+      user: kind-bug-report-portal
+current-context: kind-bug-report-portal
+```
+
+See [KIND_SETUP.md](KIND_SETUP.md#what-is-kubeconfig-important) for detailed kubeconfig explanation.
+
+**Other requirements:**
+- Docker Desktop installed
+- Git configured
+- ~10GB free disk space
+
+---
+
 ## 🚀 Quick Start
 
 ### 1. Start Services
@@ -186,7 +240,9 @@ openssl rand -hex 32       # Secret
 
 ## 📚 Documentation
 
-- [LOCAL_K8S_STEPS.md](LOCAL_K8S_STEPS.md) - Minikube deployment
+- [KIND_SETUP.md](KIND_SETUP.md) - Kind cluster setup, why Kind over Minikube, troubleshooting
+- [TESTING.md](TESTING.md) - End-to-end testing guide with Kind and Jenkins
+- [DEPLOY_TO_K8S.md](DEPLOY_TO_K8S.md) - Manual deployment fallback guide
 - [PROD_K8S_STEPS.md](PROD_K8S_STEPS.md) - Production deployment  
 - [JENKINS_BUILD_PARAMETERS.md](JENKINS_BUILD_PARAMETERS.md) - Pipeline parameters
 
