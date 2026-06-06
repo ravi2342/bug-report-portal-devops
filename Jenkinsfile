@@ -443,72 +443,7 @@ node {
           }
         }
 
-        // ========================================
-        // STAGE 15: SETUP PORT-FORWARD
-        // ========================================
-        stage('Setup Port-Forward') {
-          echo "=== Setting up port-forward for browser access ==="
-          try {
-            // Kill any existing port-forward processes
-            sh 'pkill -f "kubectl.*port-forward.*bug-report-portal-service" || true'
-            sh 'sleep 1'
-            
-            // Use temporary kubeconfig (created in Deploy stage)
-            sh '''
-              set -e
-              
-              # Load temp kubeconfig path from Deploy stage
-              if [ -f /tmp/temp_kubeconfig_path_${BUILD_NUMBER} ]; then
-                TEMP_KUBECONFIG=$(cat /tmp/temp_kubeconfig_path_${BUILD_NUMBER})
-                export KUBECONFIG="$TEMP_KUBECONFIG"
-                echo "✓ Using temporary kubeconfig: $TEMP_KUBECONFIG"
-              else
-                echo "✓ Using default kubeconfig"
-              fi
-              
-              echo "Starting port-forward (listening on all interfaces for container accessibility)..."
-              nohup kubectl --context=kind-bug-report-portal --insecure-skip-tls-verify port-forward --address 0.0.0.0 -n bug-report-portal svc/bug-report-portal-service 8888:3000 > ~/.kube/portforward.log 2>&1 &
-              PF_PID=$!
-              echo "✓ Port-forward started with PID: $PF_PID"
-              echo $PF_PID > ~/.kube/portforward.pid
-              
-              sleep 3
-              
-              # Give app time to respond
-              echo "Waiting for application to respond on localhost:8888..."
-              MAX_ATTEMPTS=15
-              ATTEMPT=0
-              
-              while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-                ATTEMPT=$((ATTEMPT + 1))
-                
-                if curl -s --connect-timeout 2 http://localhost:8888/login > /dev/null 2>&1; then
-                  echo "✓ Application is responding!"
-                  echo "✓ Accessible at: http://localhost:8888"
-                  echo "APP_URL=http://localhost:8888" > /tmp/app_url.txt
-                  exit 0
-                fi
-                
-                if [ $ATTEMPT -lt $MAX_ATTEMPTS ]; then
-                  echo "  Attempt $ATTEMPT/$MAX_ATTEMPTS - app not ready yet, waiting 2 seconds..."
-                  sleep 2
-                fi
-              done
-              
-              echo "⚠ Application not responding after $(($MAX_ATTEMPTS * 2)) seconds"
-              echo ""
-              echo "Troubleshooting:"
-              echo "  1. Check pod status: kubectl get pods -n bug-report-portal"
-              echo "  2. Check pod logs: kubectl logs -n bug-report-portal deployment/bug-report-portal-app --tail=50"
-              echo "  3. Check port-forward log: cat ~/.kube/portforward.log"
-              echo "  4. Manually start: kubectl port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000"
-            '''
-          } catch (Exception e) {
-            echo "⚠ Port-forward setup warning: ${e.message}"
-            echo "   Deployment succeeded, but port-forward may have issues"
-            echo "   Try manually: kubectl port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000"
-          }
-        }
+
 
         // ========================================
         // STAGE 16: SMOKE TESTS (OPTIONAL)
@@ -772,21 +707,33 @@ node {
             // Use default if file not found
           }
           
-          def durationMinutes = currentBuild.durationString.replaceAll(/sec.*/, '').replaceAll(/.*,\s*/, '')
-          
           echo """
-        ╔═══════════════════════════════════════════════════════════╗
-        ║           PIPELINE EXECUTION SUMMARY                      ║
-        ╠═══════════════════════════════════════════════════════════╣
+        ╔════════════════════════════════════════════════════════════════════╗
+        ║                   PIPELINE EXECUTION SUMMARY                       ║
+        ╠════════════════════════════════════════════════════════════════════╣
         ║ Status:           ${BUILD_STATUS}
         ║ Build #:          ${BUILD_NUMBER}
         ║ Duration:         ${currentBuild.durationString}
         ║ Image Tag:        ${IMAGE_TAG ?: 'Not built'}
         ║ Deployment:       ${DEPLOYMENT_URL ?: 'Not deployed'}
         ║ Application URL:  ${APP_URL}
-        ║ Test Reports:     ${BUILD_URL}artifact/test-reports/
-        ║ Console Log:      ${BUILD_URL}console
-        ╚═══════════════════════════════════════════════════════════╝
+        ╠════════════════════════════════════════════════════════════════════╣
+        ║ 🔗 TO ACCESS THE APPLICATION ON YOUR HOST MACHINE:                ║
+        ║                                                                    ║
+        ║ Run this command in your terminal:                                ║
+        ║                                                                    ║
+        ║ kubectl port-forward -n bug-report-portal svc/bug-report-portal-  ║
+        ║ service 8888:3000 --insecure-skip-tls-verify                      ║
+        ║                                                                    ║
+        ║ Then open your browser: http://localhost:8888                     ║
+        ║                                                                    ║
+        ║ Credentials: admin / admin                                         ║
+        ║                                                                    ║
+        ╠════════════════════════════════════════════════════════════════════╣
+        ║ Reports:                                                           ║
+        ║   Test Reports:     ${BUILD_URL}artifact/test-reports/            ║
+        ║   Console Log:      ${BUILD_URL}console                           ║
+        ╚════════════════════════════════════════════════════════════════════╝
         """
       }
     }
