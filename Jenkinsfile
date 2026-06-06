@@ -253,8 +253,17 @@ node {
               if (sonarAvailable) {
                 sh """
                   set -e
-                  echo "Copying sonar-project.properties to app directory..."
-                  cp sonar-project.properties app/
+                  echo "Creating sonar-project.properties in app directory..."
+                  cat > app/sonar-project.properties << 'EOF'
+sonar.projectKey=bug-report-portal
+sonar.projectName=Bug Report Portal
+sonar.projectVersion=1.0
+
+sonar.sources=.
+sonar.exclusions=**/node_modules/**,**/uploads/**,**/data/**,**/prisma/migrations/**,.git/**,**/dist/**,**/build/**
+
+sonar.sourceEncoding=UTF-8
+EOF
                   
                   echo "Starting SonarQube analysis..."
                   cd app
