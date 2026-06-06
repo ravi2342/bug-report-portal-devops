@@ -412,7 +412,39 @@ node {
         }
 
         // ========================================
-        // STAGE 15: SMOKE TESTS (OPTIONAL)
+        // STAGE 15: SETUP PORT-FORWARD
+        // ========================================
+        stage('Setup Port-Forward') {
+          echo "=== Setting up port-forward for browser access ==="
+          try {
+            sh '''
+              set -e
+              
+              echo "Stopping any existing port-forward processes..."
+              pkill -f "kubectl.*port-forward.*bug-report-portal-service" || true
+              sleep 1
+              
+              echo "Starting new port-forward in background..."
+              nohup kubectl --context=kind-bug-report-portal port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000 > /tmp/portforward.log 2>&1 &
+              
+              sleep 2
+              
+              if curl -s http://127.0.0.1:8888/login > /dev/null 2>&1; then
+                echo "✓ Port-forward established successfully"
+                echo "✓ Application accessible at: http://localhost:8888"
+              else
+                echo "⚠ Port-forward started but app not responding yet (might still be starting up)"
+                echo "   Check again in a moment: http://localhost:8888"
+              fi
+            '''
+          } catch (Exception e) {
+            echo "⚠ Warning: Port-forward setup had an issue, but deployment succeeded"
+            echo "   You can manually run: kubectl port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000"
+          }
+        }
+
+        // ========================================
+        // STAGE 16: SMOKE TESTS (OPTIONAL)
         // ========================================
         if (params.RUN_POST_DEPLOY_TESTS) {
           stage('Post-Deploy Smoke Tests') {
