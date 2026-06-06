@@ -68,7 +68,7 @@ node {
           sh """
             set -e
             echo "Cloning application repo: ${params.BRANCH} from ${params.GITHUB_REPO_URL}"
-            git clone --branch ${params.BRANCH} ${params.GITHUB_REPO_URL} .
+            git clone --branch ${params.BRANCH} ${params.GITHUB_REPO_URL} app
             echo "Checkout completed successfully"
           """
         } catch (Exception e) {
@@ -84,11 +84,11 @@ node {
         echo "=== Building metadata ==="
         try {
           // Read registry from config file
-          def imageRegistry = readFile('.docker-registry').trim()
+          def imageRegistry = readFile('app/.docker-registry').trim()
           echo "Registry: ${imageRegistry}"
           
           // Extract version from package.json
-          def packageJson = readJSON file: 'package.json'
+          def packageJson = readJSON file: 'app/package.json'
           def appVersion = packageJson.version ?: 'unknown'
           echo "App Version: ${appVersion}"
           
@@ -153,7 +153,7 @@ node {
       stage('Install Dependencies') {
         echo "=== Installing dependencies ==="
         try {
-          sh 'npm ci'
+          sh 'cd app && npm ci'
           echo "✓ Dependencies installed"
         } catch (Exception e) {
           BUILD_STATUS = 'FAILED'
@@ -169,6 +169,7 @@ node {
         try {
           sh '''
             set -e
+            cd app
             
             # Copy .env.docker.example to .env if .env doesn't exist
             if [ ! -f .env ]; then
@@ -199,12 +200,12 @@ node {
         echo "=== Running lint ==="
         try {
           def haslint = sh(
-            script: "node -e \"const p=require('./package.json'); process.exit((p.scripts && p.scripts.lint) ? 0 : 1)\"",
+            script: "node -e \"const p=require('./app/package.json'); process.exit((p.scripts && p.scripts.lint) ? 0 : 1)\"",
             returnStatus: true
           ) == 0
           
           if (haslint) {
-            sh 'npm run lint'
+            sh 'cd app && npm run lint'
             echo "✓ Lint passed"
           } else {
             echo "⊘ No lint script configured - skipping"
@@ -221,12 +222,12 @@ node {
         echo "=== Running tests ==="
         try {
           def hasTests = sh(
-            script: "node -e \"const p=require('./package.json'); process.exit((p.scripts && p.scripts.test && !p.scripts.test.includes('no test')) ? 0 : 1)\"",
+            script: "node -e \"const p=require('./app/package.json'); process.exit((p.scripts && p.scripts.test && !p.scripts.test.includes('no test')) ? 0 : 1)\"",
             returnStatus: true
           ) == 0
           
           if (hasTests) {
-            sh 'npm test'
+            sh 'cd app && npm test'
             echo "✓ Tests passed"
           } else {
             echo "⊘ No test script configured - skipping"
@@ -280,7 +281,7 @@ node {
       stage('Build Docker Image') {
         echo "=== Building Docker image: ${IMAGE_TAG} ==="
         try {
-          sh "docker build -t ${IMAGE_TAG} ."
+          sh "docker build -t ${IMAGE_TAG} app"
           echo "✓ Docker image built successfully"
         } catch (Exception e) {
           BUILD_STATUS = 'FAILED'
@@ -535,13 +536,13 @@ node {
             mkdir -p test-reports coverage-reports
             
             # Copy Jest test results
-            if [ -f coverage/coverage-final.json ]; then
-              cp -r coverage test-reports/coverage || true
+            if [ -f app/coverage/coverage-final.json ]; then
+              cp -r app/coverage test-reports/coverage || true
             fi
             
             # Copy lint results if available
-            if [ -f .eslintrc.json ]; then
-              npm run lint -- --format json > test-reports/eslint-report.json 2>&1 || true
+            if [ -f app/.eslintrc.json ]; then
+              cd app && npm run lint -- --format json > ../test-reports/eslint-report.json 2>&1 || true
             fi
             
             # Archive build logs
