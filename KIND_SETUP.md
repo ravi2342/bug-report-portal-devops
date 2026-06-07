@@ -167,7 +167,7 @@ Jenkins service needs access to the modified kubeconfig:
 # docker-compose.yml - jenkins section
 jenkins:
   volumes:
-    - ~/.kube:/root/.kube:ro        # Mount entire .kube directory
+    - ~/.kube:/root/.kube        # Mount entire .kube directory
   environment:
     KUBECONFIG: /root/.kube/config  # Tell Jenkins where to find it
 ```

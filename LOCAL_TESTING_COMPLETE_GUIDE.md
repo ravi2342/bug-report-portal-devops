@@ -662,52 +662,31 @@ ls -la
 
 ## Part 4: Create Kind Cluster
 
-### Step 1: Create Kind Configuration File
-
-Create `kind-config.yaml`:
-
-```yaml
-kind: Cluster
-apiVersion: kind.x-k8s.io/v1alpha4
-name: bug-report-portal
-nodes:
-  - role: control-plane
-    ports:
-      - containerPort: 80
-        hostPort: 80
-        protocol: TCP
-      - containerPort: 443
-        hostPort: 443
-        protocol: TCP
-      - containerPort: 8888
-        hostPort: 8888
-        protocol: TCP
-    extraPortMappings:
-      - containerPort: 3000
-        hostPort: 3000
-        protocol: TCP
-networking:
-  dnsDomain: cluster.local
-```
-
-**Save as:** `~/projects/bug-report-portal-devops/kind-config.yaml`
-
-### Step 2: Create Kind Cluster
+### Step 1: Create Kubernetes Cluster (1 command)
 
 ```bash
 cd ~/projects/bug-report-portal-devops
 
-# Create cluster
-kind create cluster --config kind-config.yaml
+# Create cluster with defaults (fully sufficient for this project)
+kind create cluster --name bug-report-portal --wait 2m
 
 # This will:
 # 1. Download Kind node image (may take 2-3 minutes first time)
 # 2. Create Docker container with Kubernetes
-# 3. Set up kubeconfig automatically
+# 3. Set up kubeconfig automatically at ~/.kube/config
 
 # Verify cluster created
 kind get clusters
 # Should show: bug-report-portal
+
+# Verify kubectl can access it
+kubectl cluster-info --context kind-bug-report-portal
+# Should output: Kubernetes control plane is running at https://127.0.0.1:xxxxx
+```
+
+✅ **That's it!** No configuration file needed.
+
+**Optional:** If you want custom port mappings for advanced use cases, see [KIND_SETUP.md](KIND_SETUP.md) advanced section.
 
 # Verify kubeconfig
 kubectl config view
@@ -1684,10 +1663,11 @@ kind delete cluster --name bug-report-portal
 # Ensure plenty of disk space (>30GB)
 df -h /
 
-# Create with verbose output
-kind create cluster --config kind-config.yaml -v 2
+# Create with simple defaults (recommended)
+kind create cluster --name bug-report-portal --wait 2m
 
-# If still fails, check Docker resources
+# If debugging, add verbose output
+kind create cluster --name bug-report-portal --wait 2m -v 2
 # Docker Desktop → Preferences → Resources
 # Increase CPU cores and memory
 ```
@@ -2100,4 +2080,4 @@ kubectl describe pod POD_NAME -n bug-report-portal | grep -A 20 Events
 - **Bug Report App:** https://github.com/ravi2342/bugreportportal
 - **DevOps Repo:** https://github.com/ravi2342/bug-report-portal-devops
 
-**Still stuck? Check:** [TROUBLESHOOTING.md](TROUBLESHOOTING.md) and [ERROR_FIXES.md](ERROR_FIXES.md)
+**Still stuck? Check:** [ERROR_FIXES.md](ERROR_FIXES.md) and [QUICK_REFERENCE.md](QUICK_REFERENCE.md)

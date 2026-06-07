@@ -231,17 +231,7 @@ Unit Tests → Coverage → SonarQube → Quality Gate → Build Image → Deplo
 
 ---
 
-### 10. **TROUBLESHOOTING.md** - Common Issues Guide
-**Purpose:** Common problems and solutions
 
-**Covers:**
-- Docker Compose setup issues
-- Jenkins configuration problems
-- kubectl connectivity issues
-- Kubernetes deployment failures
-- Database connection errors
-
-**Read when:** Encountering setup errors, service won't start
 
 ---
 
@@ -286,7 +276,7 @@ Is the problem...?
    │  └─ Read: KIND_SETUP.md
    │
    └─ Docker Compose issues?
-      └─ Read: TROUBLESHOOTING.md
+      └─ Read: QUICK_REFERENCE.md
 ```
 
 ---
@@ -304,10 +294,9 @@ Is the problem...?
 6. [QUICK_REFERENCE.md](QUICK_REFERENCE.md) → Quick commands
 
 #### **Troubleshooting**
-1. [ERROR_FIXES.md](ERROR_FIXES.md) → Known issues
-2. [TROUBLESHOOTING.md](TROUBLESHOOTING.md) → Setup issues
-3. [QUICK_REFERENCE.md](QUICK_REFERENCE.md) → Quick fixes
-4. [E2E_DEPLOYMENT.md](E2E_DEPLOYMENT.md) → Deployment troubleshooting
+1. [ERROR_FIXES.md](ERROR_FIXES.md) → Known issues with root cause analysis
+2. [QUICK_REFERENCE.md](QUICK_REFERENCE.md) → Quick fixes and commands
+3. [E2E_DEPLOYMENT.md](E2E_DEPLOYMENT.md) → Deployment troubleshooting
 
 #### **Testing**
 1. [COMPLETE_TESTING.md](COMPLETE_TESTING.md) → All test layers

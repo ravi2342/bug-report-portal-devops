@@ -16,12 +16,14 @@ CI/CD pipeline automation and local development infrastructure with Docker Compo
 | **Jenkinsfile** | 21-stage CI/CD pipeline (scripted) |
 | **sonar-project.properties** | SonarQube analysis config |
 | **k8s/** | Kubernetes manifests for app deployment |
-| **TROUBLESHOOTING.md** | Setup guide & common issues |
-| **CODE_REVIEW.md** | Architecture & implementation details |
+| **README.md** | Project overview (this file) |
+| **KIND_SETUP.md** | Local Kubernetes cluster setup |
+| **TESTING.md** | Trigger Jenkins builds & verify deployment |
+| **E2E_DEPLOYMENT.md** | Complete pipeline walkthrough |
+| **DEPLOY_TO_K8S.md** | Manual deployment (without Jenkins) |
 | **JENKINS_BUILD_PARAMETERS.md** | Pipeline parameters reference |
 | **ERROR_FIXES.md** | All 5 critical errors with solutions |
-| **E2E_DEPLOYMENT.md** | Complete deployment step-by-step |
-| **QUICK_REFERENCE.md** | Fast command reference |
+| **QUICK_REFERENCE.md** | Fast command reference & troubleshooting |
 | **COMPLETE_TESTING.md** | All testing layers (unit, integration, E2E) |
 | **LOCAL_TESTING_COMPLETE_GUIDE.md** | Complete local testing for Windows/macOS/Linux |
 | **DOCUMENTATION_INDEX.md** | Master documentation index |
@@ -104,15 +106,20 @@ docker compose exec -T jenkins cat /var/jenkins_home/secrets/initialAdminPasswor
 | **SonarQube** | http://localhost:9000 | admin / admin |
 | **PostgreSQL** | localhost:5432 | postgres / postgres |
 
-See [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for complete setup guide.
+See [KIND_SETUP.md](KIND_SETUP.md) for complete setup guide, then [TESTING.md](TESTING.md) to trigger your first build.
 
 ---
 
-## 📚 Documentation
+## 📚 Core Documentation (11 files)
 
-- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Setup guide, verification steps, common issues
-- **[CODE_REVIEW.md](CODE_REVIEW.md)** - Architecture overview, pipeline details
-- **[JENKINS_BUILD_PARAMETERS.md](JENKINS_BUILD_PARAMETERS.md)** - Pipeline parameters
+**Start here:** [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) - Master navigation guide
+
+**Quick reference:**
+- **[KIND_SETUP.md](KIND_SETUP.md)** - Local Kubernetes setup
+- **[TESTING.md](TESTING.md)** - Trigger Jenkins builds
+- **[E2E_DEPLOYMENT.md](E2E_DEPLOYMENT.md)** - Complete pipeline walkthrough
+- **[ERROR_FIXES.md](ERROR_FIXES.md)** - Critical errors & solutions
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Fast commands & troubleshooting
 
 ---
 
@@ -210,17 +217,19 @@ docker compose build --no-cache
 - Jenkinsfile uses scripted pipeline for advanced control
 - All pipeline parameters are configurable per build
 
-For troubleshooting, see [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+For troubleshooting and debugging, see [ERROR_FIXES.md](ERROR_FIXES.md) for known issues or [QUICK_REFERENCE.md](QUICK_REFERENCE.md) for quick fixes.
 
 ---
 
-## 🔧 Troubleshooting
+## 📝 Common Issues
 
-For common Jenkins pipeline errors and solutions, see [JENKINS_TROUBLESHOOTING.md](JENKINS_TROUBLESHOOTING.md)
+**Having problems?** Check these resources:
+- **Specific error?** → [ERROR_FIXES.md](ERROR_FIXES.md) - 5 critical issues with root cause analysis
+- **Need quick command?** → [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Common commands and troubleshooting
 
-Common issues:
-- Docker workspace permission errors
-- Git credentials not found
+**Most common issues:**
+- Docker workspace permission errors → See ERROR_FIXES.md
+- Git credentials not found → See ERROR_FIXES.md
 - SonarQube connection failures
 - Kubernetes deployment timeouts
 

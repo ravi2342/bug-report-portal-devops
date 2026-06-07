@@ -262,7 +262,6 @@ docker compose exec -T jenkins kubectl cluster-info
 | **JENKINS_BUILD_PARAMETERS.md** | Build parameters reference | Configuring builds |
 | **KIND_SETUP.md** | Kubernetes cluster setup | Setting up Kind |
 | **DEPLOY_TO_K8S.md** | Manual deployment steps | Deploying without pipeline |
-| **TROUBLESHOOTING.md** | Common issues & fixes | Debugging |
 
 ---
 
@@ -336,7 +335,7 @@ docker compose exec -T jenkins kubectl cluster-info
 ### Day 1: Initial Setup
 ```bash
 # Create Kind cluster
-kind create cluster --config kind-config.yaml
+kind create cluster --name bug-report-portal --wait 2m
 
 # Start Jenkins
 docker compose up -d
@@ -421,8 +420,8 @@ docker compose up -d
 # Delete existing cluster
 kind delete cluster --name bug-report-portal
 
-# Create new cluster
-kind create cluster --config kind-config.yaml
+# Create new cluster (with defaults)
+kind create cluster --name bug-report-portal --wait 2m
 
 # Redeploy application
 # (See E2E_DEPLOYMENT.md, Step 2 onwards)
@@ -483,6 +482,6 @@ If all checks pass ✓, your deployment is healthy!
 
 1. **Check ERROR_FIXES.md** - Complete solutions for all known issues
 2. **Check E2E_DEPLOYMENT.md** - Detailed step-by-step deployment guide
-3. **Check TROUBLESHOOTING.md** - Common issues and fixes
+3. **Check QUICK_REFERENCE.md** - Quick commands and fixes
 4. **Check logs:** `kubectl logs -n bug-report-portal deployment/POD_NAME`
 5. **Check pod status:** `kubectl describe pod POD_NAME -n bug-report-portal`

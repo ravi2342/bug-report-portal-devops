@@ -62,7 +62,7 @@ The deployment process consists of:
 
 ### Local Environment Setup
 - **macOS with Docker Desktop installed** (running Docker engine)
-- **Kind cluster created:** `kind create cluster --config /path/to/kind-config.yaml`
+- **Kind cluster created:** `kind create cluster --name bug-report-portal --wait 2m`
 - **kubectl installed:** `kubectl version --client`
 - **Git configured** with SSH or HTTPS credentials
 - **~10GB free disk space** for Docker images and databases
@@ -765,5 +765,5 @@ After deployment, verify:
 - **Error Fixes:** See [ERROR_FIXES.md](ERROR_FIXES.md)
 - **Kubernetes Setup:** See [KIND_SETUP.md](KIND_SETUP.md)
 - **Deployment Details:** See [DEPLOY_TO_K8S.md](DEPLOY_TO_K8S.md)
-- **Troubleshooting:** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+- **Troubleshooting:** See [ERROR_FIXES.md](ERROR_FIXES.md) and [QUICK_REFERENCE.md](QUICK_REFERENCE.md)
 - **Jenkins Parameters:** See [JENKINS_BUILD_PARAMETERS.md](JENKINS_BUILD_PARAMETERS.md)
