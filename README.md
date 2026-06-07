@@ -19,6 +19,12 @@ CI/CD pipeline automation and local development infrastructure with Docker Compo
 | **TROUBLESHOOTING.md** | Setup guide & common issues |
 | **CODE_REVIEW.md** | Architecture & implementation details |
 | **JENKINS_BUILD_PARAMETERS.md** | Pipeline parameters reference |
+| **ERROR_FIXES.md** | All 5 critical errors with solutions |
+| **E2E_DEPLOYMENT.md** | Complete deployment step-by-step |
+| **QUICK_REFERENCE.md** | Fast command reference |
+| **COMPLETE_TESTING.md** | All testing layers (unit, integration, E2E) |
+| **LOCAL_TESTING_COMPLETE_GUIDE.md** | Complete local testing for Windows/macOS/Linux |
+| **DOCUMENTATION_INDEX.md** | Master documentation index |
 
 ---
 

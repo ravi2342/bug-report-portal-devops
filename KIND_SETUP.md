@@ -49,6 +49,32 @@ Minikube is a great tool, but it has **network isolation issues** when running J
 
 Think of it like: Kind starts a database server, but kubectl is the client tool to query it.
 
+### Application Requirements: Node.js & npm
+
+The application uses **Node.js** and **npm**, which are also required for:
+- Running unit tests (`npm test`)
+- Building Docker image
+- Installing dependencies (`npm install`)
+- Development and debugging
+
+**Node.js Installation:**
+```bash
+brew install node
+node --version
+# Should be v18+ or v20+
+```
+
+**npm Installation:**
+```bash
+npm --version
+# Should be v9+ or v10+
+```
+
+**Note:** npm is included with Node.js, so installing Node.js also installs npm.
+
+**For other operating systems** (Windows, Linux) and alternative installation methods (NVM, Chocolatey, apt, etc.):
+👉 **See:** [LOCAL_TESTING_COMPLETE_GUIDE.md - Part 2.7](LOCAL_TESTING_COMPLETE_GUIDE.md#27-nodejs--npm-installation-required-for-application)
+
 ---
 
 ## Installation Steps (9 steps, in order)
@@ -478,6 +504,31 @@ docker exec jenkins kubectl --insecure-skip-tls-verify cluster-info
 # 3. Check Jenkins logs
 docker logs jenkins | grep -i kube
 ```
+
+---
+
+## ✅ What's Next?
+
+**After completing this guide, your Kind cluster is ready!**
+
+### Next Step: Trigger Your First Build
+
+Follow [TESTING.md](TESTING.md) to:
+1. 🔨 Trigger a Jenkins build with `DO_DEPLOY=true`
+2. 📊 Verify Kubernetes deployment
+3. 🌐 Access the application via port-forward
+
+👉 **[Go to TESTING.md](TESTING.md)** (~15 minutes)
+
+### Or Try These Alternatives
+
+| If You Want | See This Guide |
+|------------|----------------|
+| **Complete step-by-step guide** (all OS) | [LOCAL_TESTING_COMPLETE_GUIDE.md](LOCAL_TESTING_COMPLETE_GUIDE.md) |
+| **Manual K8s deployment** (without Jenkins) | [DEPLOY_TO_K8S.md](DEPLOY_TO_K8S.md) |
+| **Understanding pipeline stages** | [E2E_DEPLOYMENT.md](E2E_DEPLOYMENT.md) |
+| **Quick commands reference** | [QUICK_REFERENCE.md](QUICK_REFERENCE.md) |
+| **Troubleshooting errors** | [ERROR_FIXES.md](ERROR_FIXES.md) |
 
 ---
 

@@ -1,10 +1,36 @@
 # Quick Reference Guide - Complete Workflow
 
-Fast reference for common deployment and troubleshooting tasks.
+Fast reference for common tasks, commands, and troubleshooting.
 
 ---
 
-## 🚀 Quick Start: Deploy & Access Application
+## 🎯 What's in This Guide?
+
+✅ **Quick Start** - 5-step deployment workflow  
+✅ **Common Commands** - Copy-paste kubectl/docker/jenkins commands  
+✅ **Troubleshooting** - Quick fixes for common issues  
+✅ **Key Concepts** - Understanding Docker/Kubernetes/Port-forward architecture  
+✅ **Emergency Procedures** - Force restart/reset commands  
+✅ **Pipeline Stages** - All 21+ Jenkins stages explained  
+
+**For detailed error analysis, root causes & solutions:**  
+👉 **[ERROR_FIXES.md](ERROR_FIXES.md)** - Complete troubleshooting with error logs
+
+---
+
+## 🆕 First Time Setup?
+
+**New to this project?** Start with the complete guide first:
+👉 **[LOCAL_TESTING_COMPLETE_GUIDE.md](LOCAL_TESTING_COMPLETE_GUIDE.md)** - Step-by-step for Windows/macOS/Linux
+- Part 1: Pre-flight checklist
+- Part 2: Software installation (all OS)
+- Parts 3-12: Complete workflow from setup to testing
+
+Then come back here for quick commands and concepts.
+
+---
+
+## �🚀 Quick Start: Deploy & Access Application
 
 ### 1️⃣ Trigger Build in Jenkins
 ```bash

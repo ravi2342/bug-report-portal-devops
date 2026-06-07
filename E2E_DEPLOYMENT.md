@@ -1,6 +1,47 @@
 # End-to-End (E2E) Deployment Guide
 
-Complete walkthrough of deploying the Bug Report Portal application from code commit to browser access with automated e2e testing.
+**Complete walkthrough of the entire CI/CD pipeline:** from code commit → GitHub → Jenkins → Kubernetes → browser access with automated testing.
+
+---
+
+## 🎯 What This Guide Covers
+
+This is a **comprehensive pipeline walkthrough** that explains:
+- ✅ All 21+ Jenkins pipeline stages and what each does
+- ✅ How code changes trigger automatic builds
+- ✅ How images are built and pushed to Docker Hub
+- ✅ How applications deploy to Kubernetes
+- ✅ How automated tests verify deployment
+- ✅ How to access the application
+
+**Perfect for:** Understanding the complete workflow and what happens at each stage
+
+---
+
+## When to Use This vs Other Guides
+
+| If You Want | Use This Guide |
+|-------------|--------|
+| **Full pipeline explanation** | ✅ E2E_DEPLOYMENT.md (this one) |
+| **Quick deployment** | [TESTING.md](TESTING.md) - Shorter, focused on execution |
+| **Manual deployment without Jenkins** | [DEPLOY_TO_K8S.md](DEPLOY_TO_K8S.md) - Fallback guide |
+| **Complete setup from scratch** | [LOCAL_TESTING_COMPLETE_GUIDE.md](LOCAL_TESTING_COMPLETE_GUIDE.md) - All OS, all steps |
+| **Quick commands reference** | [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Copy-paste commands |
+
+---
+
+## 📖 First Time Here?
+
+**New to local testing?** This guide explains the complete pipeline but assumes prerequisites are set up.
+
+If you need to set everything up from scratch:
+👉 **[LOCAL_TESTING_COMPLETE_GUIDE.md](LOCAL_TESTING_COMPLETE_GUIDE.md)** - Complete setup for all operating systems
+- Software installation for Windows, macOS, Linux
+- Kubernetes cluster creation
+- Jenkins & SonarQube setup
+- All 12 parts step-by-step
+
+This guide then explains what happens in each Jenkins stage.
 
 ---
 

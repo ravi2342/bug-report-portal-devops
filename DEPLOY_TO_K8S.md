@@ -1,7 +1,21 @@
-# Kubernetes Deployment to Kind Cluster
+# Kubernetes Deployment to Kind Cluster - Manual Guide
+
+## ⚠️ When to Use This Guide
+
+**Use this guide ONLY if:**
+- ❌ Jenkins pipeline deployment fails (DO_DEPLOY=true didn't work)
+- ✅ You want to deploy manually without Jenkins
+- ✅ You need to troubleshoot deployment outside of pipeline
+
+**Otherwise, use:**
+- 👉 **[TESTING.md](TESTING.md)** - Automated deployment via Jenkins (Recommended)
+- 👉 **[E2E_DEPLOYMENT.md](E2E_DEPLOYMENT.md)** - Complete pipeline walkthrough
+
+---
 
 ## Overview
-With the Kind setup, Jenkins can now deploy automatically via the CI/CD pipeline.
+
+This guide provides **manual Kubernetes deployment** as a fallback when automated Jenkins deployment is not available or needed.
 
 **Recommended:** Use Jenkins pipeline with `DO_DEPLOY=true` for automated deployment.
 
@@ -79,15 +93,28 @@ kubectl get deployment -n bug-report-portal bug-report-portal-app -o yaml | grep
 
 ---
 
-## Step 3: Access Application
+## Step 3: Access Application via Port-Forward
 
+**Option A: Foreground (keep terminal open)**
 ```bash
-# Port-forward to service
-kubectl port-forward -n bug-report-portal svc/bug-report-portal-app 3000:3000
-
-# In another terminal, visit:
-# http://localhost:3000
+kubectl port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000 \
+  --insecure-skip-tls-verify
 ```
+
+**Option B: Background (recommended)**
+```bash
+kubectl port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000 \
+  --insecure-skip-tls-verify > ~/.kube/portforward.log 2>&1 &
+```
+
+**Then open browser:**
+```
+http://localhost:8888
+```
+
+**Login credentials:**
+- Email/Username: admin
+- Password: admin
 
 ---
 
