@@ -255,6 +255,10 @@ openssl rand -hex 32       # Secret
 
 ## 📚 Documentation
 
+### 🏃 Quick Start
+- **[QUICK_LOCAL_TEST.md](QUICK_LOCAL_TEST.md)** ⭐ - 5-10 minute E2E test (START HERE!)
+
+### 📖 Full Guides
 - [KIND_SETUP.md](KIND_SETUP.md) - Kind cluster setup, why Kind over Minikube, troubleshooting
 - [TESTING.md](TESTING.md) - End-to-end testing guide with Kind and Jenkins
 - [DEPLOY_TO_K8S.md](DEPLOY_TO_K8S.md) - Manual deployment fallback guide

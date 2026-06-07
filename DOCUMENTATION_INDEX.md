@@ -6,6 +6,9 @@ Master reference for all DevOps documentation, error fixes, deployment guides, a
 
 ## 🎯 Quick Navigation by Task
 
+### "I want to test locally quickly (5-10 min)" ⭐
+→ **[QUICK_LOCAL_TEST.md](QUICK_LOCAL_TEST.md)** - Essential steps only (START HERE!)
+
 ### "I want to deploy the application"
 → Start with [KIND_SETUP.md](KIND_SETUP.md), then [TESTING.md](TESTING.md) (Recommended)  
 → Or [E2E_DEPLOYMENT.md](E2E_DEPLOYMENT.md) for complete pipeline walkthrough
