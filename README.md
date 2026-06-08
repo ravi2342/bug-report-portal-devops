@@ -255,15 +255,25 @@ openssl rand -hex 32       # Secret
 
 ## 📚 Documentation
 
-### 🏃 Quick Start
-- **[QUICK_LOCAL_TEST.md](QUICK_LOCAL_TEST.md)** ⭐ - 5-10 minute E2E test (START HERE!)
+**Start here based on what you need:**
 
-### 📖 Full Guides
-- [KIND_SETUP.md](KIND_SETUP.md) - Kind cluster setup, why Kind over Minikube, troubleshooting
-- [TESTING.md](TESTING.md) - End-to-end testing guide with Kind and Jenkins
-- [DEPLOY_TO_K8S.md](DEPLOY_TO_K8S.md) - Manual deployment fallback guide
-- [PROD_K8S_STEPS.md](PROD_K8S_STEPS.md) - Production deployment  
-- [JENKINS_BUILD_PARAMETERS.md](JENKINS_BUILD_PARAMETERS.md) - Pipeline parameters
+### ⭐ Quick Start (5-10 minutes)
+- **[QUICK_LOCAL_TEST.md](QUICK_LOCAL_TEST.md)** - Essential steps to test locally
+
+### 📖 Setup & Deployment
+- [KIND_SETUP.md](KIND_SETUP.md) - Set up local Kubernetes cluster
+- [TESTING.md](TESTING.md) - Trigger Jenkins builds & verify deployment
+- [DEPLOY_TO_K8S.md](DEPLOY_TO_K8S.md) - Manual deployment without Jenkins
+- [PROD_K8S_STEPS.md](PROD_K8S_STEPS.md) - Production deployment guide
+
+### 🔧 Pipeline & Tools
+- [E2E_DEPLOYMENT.md](E2E_DEPLOYMENT.md) - Complete 21-stage pipeline walkthrough
+- [JENKINS_BUILD_PARAMETERS.md](JENKINS_BUILD_PARAMETERS.md) - Pipeline parameters reference
+- [SONARQUBE_SETUP.md](SONARQUBE_SETUP.md) - SonarCloud/SonarQube setup & configuration
+- [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Commands & troubleshooting quick lookup
+
+### ⚙️ Issues & Solutions
+- [ERROR_FIXES.md](ERROR_FIXES.md) - All 6 critical issues & complete solutions
 
 ---
 

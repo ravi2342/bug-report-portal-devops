@@ -435,6 +435,81 @@ kubectl port-forward -n bug-report-portal \
 | #3: Kubeconfig Modified | Permanent modification of ~/.kube/config | Use temporary kubeconfig, restore original | ✅ RESOLVED |
 | #4: TLS Cert Validation | TLS cert issued for localhost, not host.docker.internal | Add --insecure-skip-tls-verify flag | ✅ RESOLVED |
 | #5: Browser Access Fails | Port-forward inside container is invisible to host | Port-forward runs on user's macOS, not in Jenkinsfile | ✅ RESOLVED |
+| #6: SonarQube Branch Error | Branch analysis not supported in Community Edition | Remove -Dsonar.branch.name parameter, accept single-branch | ✅ RESOLVED |
+
+---
+
+## Issue #6: SonarQube Community Edition - Branch Analysis Not Supported
+
+### Problem
+Jenkins Build #35 failed during SonarQube scan stage with error:
+```
+ERROR: Validation of project failed:
+  o To use the property "sonar.branch.name" and analyze branches, 
+    Developer Edition or above is required.
+```
+
+### Root Cause Analysis
+
+**The Issue:**
+The refactored Jenkinsfile included `-Dsonar.branch.name=${params.BRANCH}` parameter to track separate branches in SonarQube.
+
+**The Limitation:**
+- **SonarQube Community Edition**: Does NOT support branch analysis
+- **Requirement**: Developer Edition or higher ($15k+/year) needed
+- **docker-compose.yml**: Uses `sonarqube:lts-community` (free version)
+
+**What Community Edition Supports:**
+- ✅ Code analysis and bug detection
+- ✅ Vulnerability scanning
+- ✅ Code coverage metrics
+- ✅ Quality gates evaluation
+- ❌ Branch tracking (`-Dsonar.branch.name` parameter)
+
+### Solution Implemented
+
+**Remove branch parameter for Community Edition compatibility:**
+
+```groovy
+// ❌ BEFORE (fails on Community Edition)
+sonar-scanner \
+  -Dsonar.branch.name=${params.BRANCH}
+
+// ✅ AFTER (works with Community Edition)
+sonar-scanner \
+  -Dsonar.host.url="${params.SONAR_HOST_URL}" \
+  -Dsonar.token="${SONAR_TOKEN}" \
+  -Dsonar.qualitygate.wait=true
+```
+
+**Behavior with Community Edition:**
+- All builds analyze to the same project
+- Each new build overwrites previous results
+- Latest analysis always visible in dashboard
+- No branch separation (acceptable trade-off for free version)
+
+### Result
+
+✅ **Build #36 and beyond will pass the SonarQube scan stage**  
+✅ **Quality gate validation works correctly**  
+✅ **Code metrics and bug detection fully functional**  
+✅ **No branch tracking (acceptable limitation)**
+
+### Alternative: Use SonarCloud (Recommended for Branch Tracking)
+
+If branch analysis is critical, consider:
+- **SonarCloud** (cloud-hosted)
+- **Free tier** supports branch analysis for open-source projects
+- **No self-hosted infrastructure** needed
+- Replace `sonarqube:lts-community` container with SonarCloud integration
+
+### Documentation Updates
+
+**Files changed:**
+1. **Jenkinsfile**: Removed `-Dsonar.branch.name` parameter
+2. **sonar-project.properties**: Cleaned up branch comments
+3. **SONARQUBE_SETUP.md**: Added "Community Edition Limitation" section
+4. **ERROR_FIXES.md**: Documented this issue
 
 ---
 

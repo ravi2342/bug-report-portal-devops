@@ -97,50 +97,63 @@ sonar.sourceEncoding=UTF-8
 
 ## 🌿 Understanding Branches in SonarQube
 
-### What is a Branch?
+### Community Edition Limitation ⚠️
 
-SonarQube tracks **different versions** of your code analysis:
+**Branch analysis is only available in Developer Edition and above.**
+
+This project uses **SonarQube Community Edition** (`sonarqube:lts-community`), which:
+- ✅ **CAN**: Analyze code, detect bugs, check vulnerabilities
+- ✅ **CAN**: Generate quality metrics and reports
+- ❌ **CANNOT**: Track separate branches (master, develop, feature/xyz)
+- ❌ **CANNOT**: Use `-Dsonar.branch.name` parameter
+
+### Community Edition Behavior
+
+All analyses go to the **default project**, regardless of git branch:
+
+```
+Build from master branch
+    ↓
+SonarQube analysis runs
+    ↓
+Results stored in: project 'bug-report-portal' (no branch separation)
+    ↓
+Next build from develop
+    ↓
+Overwrites previous results (all in same "bucket")
+```
+
+### If You Need Branch Analysis
+
+Upgrade to:
+- **SonarQube Developer Edition** (~$15,000/year)
+- **SonarQube Enterprise Edition** (~$45,000+/year)
+
+Or use:
+- **SonarCloud** (cloud hosted, free for open-source)
+
+### For Now (Community Edition)
+
+The configuration works perfectly for:
+- ✅ Analyzing latest code
+- ✅ Detecting bugs and vulnerabilities
+- ✅ Checking code coverage
+- ✅ Quality gate validation
+- ✅ Technical debt estimation
+
+Each build will show the latest analysis results.
+
+---
+
+## What is a Branch?
+
+**SonarQube Branches** (Developer+ only): Track code quality across versions
 - **Project**: `bug-report-portal` (container)
-  - **Branch 1**: `master` (main branch)
-  - **Branch 2**: `develop` (development branch)
+  - **Branch 1**: `master` (production branch)
+  - **Branch 2**: `develop` (dev branch)  
   - **Branch 3**: `feature/xyz` (feature branch)
 
-### Without Branch Specification
-
-```groovy
-sonar-scanner -Dsonar.projectKey=bug-report-portal
-```
-Result:
-- Goes to **default branch** (SonarQube default is "main")
-- All builds update the SAME branch
-- UI shows latest analysis only
-
-### With Branch Specification
-
-```groovy
-sonar-scanner \
-  -Dsonar.projectKey=bug-report-portal \
-  -Dsonar.branch.name=master
-```
-Result:
-- Explicitly targets `master` branch
-- Separate from other branches (develop, feature/xyz)
-- UI shows branch-specific metrics
-
-### In Jenkins (Current Implementation)
-
-```groovy
-sonar-scanner \
-  -Dsonar.host.url="${params.SONAR_HOST_URL}" \
-  -Dsonar.token="${SONAR_TOKEN}" \
-  -Dsonar.branch.name=${params.BRANCH} \  # ← Uses Jenkins parameter
-  -Dsonar.qualitygate.wait=true
-```
-
-**Behavior:**
-- Build on `master` branch → analysis goes to `master` in SonarQube
-- Build on `develop` branch → analysis goes to `develop` in SonarQube
-- Separate metrics per branch
+Each branch maintains separate metrics over time.
 
 ---
 

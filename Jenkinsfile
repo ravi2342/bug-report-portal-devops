@@ -31,8 +31,9 @@ properties([
     booleanParam(name: 'RUN_UI_E2E', defaultValue: false, description: 'Run UI E2E after smoke tests'),
     string(name: 'REGISTRY_CREDENTIALS_ID', defaultValue: 'dockerhub-creds-pat', description: 'Jenkins credentials ID for Docker Hub login'),
     string(name: 'E2E_COMMAND', defaultValue: '', description: 'Optional UI E2E command (e.g. npm run test:e2e)'),
-    string(name: 'SONAR_HOST_URL', defaultValue: 'http://sonarqube:9000', description: 'SonarQube URL (Docker Compose: sonarqube:9000, K8s: sonarqube.sonarqube.svc.cluster.local:9000)'),
-    string(name: 'SONAR_TOKEN_CREDENTIALS_ID', defaultValue: 'sonar-token', description: 'Optional Jenkins String credential ID for Sonar token')
+    string(name: 'SONAR_HOST_URL', defaultValue: 'https://sonarcloud.io', description: 'SonarQube URL (Local: http://sonarqube:9000, Cloud: https://sonarcloud.io)'),
+    string(name: 'SONAR_PROJECT_KEY', defaultValue: 'ravi2342_bugreportportal', description: 'SonarQube project key (SonarCloud: org_repo)'),
+    string(name: 'SONAR_TOKEN_CREDENTIALS_ID', defaultValue: 'sonar-token', description: 'Jenkins String credential ID for Sonar/SonarCloud token')
   ])
   // Note: For automatic triggers, use GitHub webhooks instead of pollSCM for better efficiency
   // To enable webhook trigger: Jenkins > Job Config > Build Triggers > "GitHub hook trigger for GITScm polling"
@@ -279,17 +280,17 @@ node {
                   cat sonar-project.properties
                   
                   echo ""
-                  echo "Running sonar-scanner with Jenkins parameters + file config..."
-                  sonar-scanner \\
-                    -Dsonar.host.url="${params.SONAR_HOST_URL}" \\
-                    -Dsonar.token="${SONAR_TOKEN}" \\
-                    -Dsonar.branch.name=${params.BRANCH} \\
-                    -Dsonar.qualitygate.wait=true \\
+                  echo "Running sonar-scanner against SonarCloud..."
+                  sonar-scanner \
+                    -Dsonar.host.url="${params.SONAR_HOST_URL}" \
+                    -Dsonar.projectKey="${params.SONAR_PROJECT_KEY}" \
+                    -Dsonar.token="${SONAR_TOKEN}" \
+                    -Dsonar.qualitygate.wait=true \
                     -Dsonar.qualitygate.timeout=300
                   
                   echo ""
                   echo "✓ Quality Gate PASSED"
-                  echo "View results at: ${params.SONAR_HOST_URL}/dashboard?id=bug-report-portal"
+                  echo "View results at: ${params.SONAR_HOST_URL}/dashboard?id=${params.SONAR_PROJECT_KEY}"
                 """
               } else {
                 echo "⊘ sonar-scanner not installed - skipping Sonar scan"
