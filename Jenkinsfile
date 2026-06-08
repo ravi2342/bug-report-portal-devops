@@ -239,7 +239,7 @@ node {
       // STAGE 9: TESTS (IF CONFIGURED)
       // ========================================
       stage('Run Tests') {
-        echo "=== Running tests ==="
+        echo "=== Running tests with coverage ==="
         try {
           def hasTests = sh(
             script: "node -e \"const p=require('./app/package.json'); process.exit((p.scripts && p.scripts.test && !p.scripts.test.includes('no test')) ? 0 : 1)\"",
@@ -247,8 +247,12 @@ node {
           ) == 0
           
           if (hasTests) {
-            sh 'cd app && npm test'
-            echo "✓ Tests passed"
+            sh '''
+              set -e
+              cd app
+              npm test -- --coverage --coverageReporters=lcov --coverageReporters=text --coverageReporters=text-summary
+            '''
+            echo "✓ Tests passed with coverage report at app/coverage/lcov.info"
           } else {
             echo "⊘ No test script configured - skipping"
           }
