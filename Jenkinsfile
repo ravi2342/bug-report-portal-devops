@@ -282,6 +282,7 @@ node {
                   echo ""
                   echo "Running sonar-scanner against SonarCloud..."
                   sonar-scanner \
+                    -Dproject.settings=sonar-project.properties \
                     -Dsonar.projectBaseDir=.. \
                     -Dsonar.host.url="${params.SONAR_HOST_URL}" \
                     -Dsonar.projectKey="${params.SONAR_PROJECT_KEY}" \
