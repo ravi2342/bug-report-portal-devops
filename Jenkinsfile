@@ -274,13 +274,20 @@ node {
                   set -e
                   echo "Starting SonarQube analysis from devops directory..."
                   cd devops
+                  
+                  echo "Reading configuration from sonar-project.properties..."
+                  cat sonar-project.properties
+                  
+                  echo ""
+                  echo "Running sonar-scanner with Jenkins parameters + file config..."
                   sonar-scanner \\
                     -Dsonar.host.url="${params.SONAR_HOST_URL}" \\
                     -Dsonar.token="${SONAR_TOKEN}" \\
-                    -Dsonar.projectKey=bug-report-portal \\
+                    -Dsonar.branch.name=${params.BRANCH} \\
                     -Dsonar.qualitygate.wait=true \\
                     -Dsonar.qualitygate.timeout=300
                   
+                  echo ""
                   echo "✓ Quality Gate PASSED"
                   echo "View results at: ${params.SONAR_HOST_URL}/dashboard?id=bug-report-portal"
                 """
