@@ -231,7 +231,8 @@ node {
             echo "⊘ No lint script configured - skipping"
           }
         } catch (Exception e) {
-          echo "⚠ Lint failed but continuing: ${e.message}"
+          BUILD_STATUS = 'FAILED'
+          error("Lint failed: ${e.message}")
         }
       }
 
@@ -257,7 +258,8 @@ node {
             echo "⊘ No test script configured - skipping"
           }
         } catch (Exception e) {
-          echo "⚠ Tests failed but continuing: ${e.message}"
+          BUILD_STATUS = 'FAILED'
+          error("Tests failed: ${e.message}")
         }
       }
 
