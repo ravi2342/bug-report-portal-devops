@@ -23,6 +23,7 @@ CI/CD pipeline automation and local development infrastructure with Docker Compo
 | **DEPLOY_TO_K8S.md** | Manual deployment (without Jenkins) |
 | **JENKINS_BUILD_PARAMETERS.md** | Pipeline parameters reference |
 | **ERROR_FIXES.md** | All 5 critical errors with solutions |
+| **BUILD_FAILURES.md** | Troubleshoot DevOps infrastructure failures |
 | **QUICK_REFERENCE.md** | Fast command reference & troubleshooting |
 | **COMPLETE_TESTING.md** | All testing layers (unit, integration, E2E) |
 | **LOCAL_TESTING_COMPLETE_GUIDE.md** | Complete local testing for Windows/macOS/Linux |
@@ -224,14 +225,22 @@ For troubleshooting and debugging, see [ERROR_FIXES.md](ERROR_FIXES.md) for know
 ## 📝 Common Issues
 
 **Having problems?** Check these resources:
-- **Specific error?** → [ERROR_FIXES.md](ERROR_FIXES.md) - 5 critical issues with root cause analysis
+
+**Infrastructure & Pipeline Failures:**
+- **Jenkins build failed?** → [BUILD_FAILURES.md](BUILD_FAILURES.md) - Trivy, Docker, Kubernetes, Jenkins issues
+- **DevOps setup error?** → [ERROR_FIXES.md](ERROR_FIXES.md) - 5 critical DevOps issues with root cause analysis
 - **Need quick command?** → [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Common commands and troubleshooting
 
-**Most common issues:**
-- Docker workspace permission errors → See ERROR_FIXES.md
-- Git credentials not found → See ERROR_FIXES.md
-- SonarQube connection failures
-- Kubernetes deployment timeouts
+**Application Code Issues:**
+- **Lint, tests, coverage?** → [bugreportportal/CONTRIBUTING.md](https://github.com/ravi2342/bugreportportal/blob/master/CONTRIBUTING.md)
+- **SonarCloud quality gate?** → [bugreportportal/TROUBLESHOOTING.md](https://github.com/ravi2342/bugreportportal/blob/master/TROUBLESHOOTING.md)
+
+**Most common DevOps issues:**
+- Trivy security scan failing (CVE vulnerabilities) → BUILD_FAILURES.md
+- Docker build failures → BUILD_FAILURES.md
+- Kubernetes deployment timeouts → BUILD_FAILURES.md
+- Jenkins permission errors → ERROR_FIXES.md
+- Git credentials not found → QUICK_REFERENCE.md
 
 ---
 
