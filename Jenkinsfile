@@ -13,6 +13,7 @@ properties([
   parameters([
     string(name: 'BRANCH', defaultValue: 'master', description: 'Git branch to build'),
     string(name: 'GITHUB_REPO_URL', defaultValue: 'https://github.com/ravi2342/bugreportportal.git', description: 'GitHub application repository URL'),
+    string(name: 'DOCKER_IMAGE_PATH', defaultValue: 'demu147/bugreportportal', description: 'Docker image path (username/imagename)'),
     booleanParam(name: 'DO_PUSH', defaultValue: false, description: 'Push Docker image to registry'),
     booleanParam(name: 'DO_DEPLOY', defaultValue: false, description: 'Deploy to Kubernetes'),
     booleanParam(name: 'RUN_SONAR', defaultValue: false, description: 'Run SonarQube scan'),
@@ -37,9 +38,9 @@ pipeline {
   
   environment {
     IMAGE_REGISTRY = 'docker.io'
-    IMAGE_NAME = 'bugreportportal'
+    DOCKER_IMAGE_PATH = params.DOCKER_IMAGE_PATH ?: 'demu147/bugreportportal'
     APP_VERSION = sh(script: "node -e \"const p=require('./app/package.json'); console.log(p.version)\" 2>/dev/null || echo '1.0.0'", returnStdout: true).trim()
-    IMAGE_TAG = "${IMAGE_REGISTRY}/${IMAGE_NAME}:${APP_VERSION}-${BUILD_NUMBER}"
+    IMAGE_TAG = "${IMAGE_REGISTRY}/${DOCKER_IMAGE_PATH}:${APP_VERSION}-${BUILD_NUMBER}"
   }
   
   stages {
