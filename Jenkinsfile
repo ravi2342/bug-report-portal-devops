@@ -38,9 +38,7 @@ pipeline {
   
   environment {
     IMAGE_REGISTRY = 'docker.io'
-    DOCKER_IMAGE_PATH = params.DOCKER_IMAGE_PATH ?: 'demu147/bugreportportal'
     APP_VERSION = sh(script: "node -e \"const p=require('./app/package.json'); console.log(p.version)\" 2>/dev/null || echo '1.0.0'", returnStdout: true).trim()
-    IMAGE_TAG = "${IMAGE_REGISTRY}/${DOCKER_IMAGE_PATH}:${APP_VERSION}-${BUILD_NUMBER}"
   }
   
   stages {
@@ -83,8 +81,12 @@ pipeline {
             targetDir: 'devops'
           )
           
-          // Set build display name after both checkouts
-          currentBuild.displayName = "#${BUILD_NUMBER} - ${IMAGE_TAG}"
+          // Compute IMAGE_TAG and set build display name after both checkouts
+          def dockerImagePath = params.DOCKER_IMAGE_PATH ?: 'demu147/bugreportportal'
+          def appVersion = sh(script: "node -e \"const p=require('./app/package.json'); console.log(p.version)\" 2>/dev/null || echo '1.0.0'", returnStdout: true).trim()
+          env.IMAGE_TAG = "docker.io/${dockerImagePath}:${appVersion}-${BUILD_NUMBER}"
+          
+          currentBuild.displayName = "#${BUILD_NUMBER} - ${env.IMAGE_TAG}"
           currentBuild.description = """
             Branch: ${params.BRANCH}
             Push: ${params.DO_PUSH}
@@ -159,7 +161,7 @@ pipeline {
       steps {
         script {
           dockerBuild(
-            imageTag: "${IMAGE_TAG}",
+            imageTag: "${env.IMAGE_TAG}",
             dockerfile: 'app'
           )
         }
@@ -173,7 +175,7 @@ pipeline {
       steps {
         script {
           trivyScan(
-            imageTag: "${IMAGE_TAG}",
+            imageTag: "${env.IMAGE_TAG}",
             failOnSeverity: true
           )
         }
@@ -190,7 +192,7 @@ pipeline {
       steps {
         script {
           dockerPush(
-            imageTag: "${IMAGE_TAG}",
+            imageTag: "${env.IMAGE_TAG}",
             registryCredId: params.REGISTRY_CREDENTIALS_ID
           )
         }
@@ -207,7 +209,7 @@ pipeline {
       steps {
         script {
           k8sDeploy(
-            imageTag: "${IMAGE_TAG}",
+            imageTag: "${env.IMAGE_TAG}",
             clusterContext: 'kind-bug-report-portal',
             namespace: 'bug-report-portal',
             deploymentName: 'bug-report-portal-app',
@@ -228,7 +230,7 @@ pipeline {
             buildStatus: currentBuild.result ?: 'SUCCESS',
             buildNumber: env.BUILD_NUMBER,
             jobName: env.JOB_NAME,
-            imageTag: "${IMAGE_TAG}",
+            imageTag: "${env.IMAGE_TAG}",
             deployed: params.DO_DEPLOY
           )
         }
@@ -246,7 +248,7 @@ pipeline {
         ║ Status:          ${currentBuild.result ?: 'SUCCESS'}
         ║ Build:           #${BUILD_NUMBER}
         ║ Duration:        ${currentBuild.durationString}
-        ║ Image:           ${IMAGE_TAG}
+        ║ Image:           ${env.IMAGE_TAG}
         ╚═══════════════════════════════════════════════════════════════╝
         """
       }
