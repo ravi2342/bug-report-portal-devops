@@ -44,45 +44,58 @@ pipeline {
   
   stages {
     // ========================================
-    // STAGE 1: CLEAN & CHECKOUT
+    // STAGE 1: CLEAN WORKSPACE
     // ========================================
-    stage('Clean & Checkout') {
+    stage('Clean Workspace') {
       steps {
         script {
-          try {
-            deleteDir()
-            
-            // Checkout application repo
-            gitCheckout(
-              branch: params.BRANCH,
-              repoUrl: params.GITHUB_REPO_URL,
-              targetDir: 'app'
-            )
-            
-            // Checkout devops repo
-            gitCheckout(
-              branch: 'master',
-              repoUrl: 'https://github.com/ravi2342/bug-report-portal-devops.git',
-              targetDir: 'devops'
-            )
-            
-            // Set build display name
-            currentBuild.displayName = "#${BUILD_NUMBER} - ${IMAGE_TAG}"
-            currentBuild.description = """
-              Branch: ${params.BRANCH}
-              Push: ${params.DO_PUSH}
-              Deploy: ${params.DO_DEPLOY}
-              SonarQube: ${params.RUN_SONAR}
-            """.stripIndent()
-          } catch (Exception e) {
-            error("Checkout failed: ${e.message}")
-          }
+          deleteDir()
+          echo "✓ Workspace cleaned"
         }
       }
     }
     
     // ========================================
-    // STAGE 2: PREFLIGHT CHECKS
+    // STAGE 2: CHECKOUT APPLICATION
+    // ========================================
+    stage('Checkout Application') {
+      steps {
+        script {
+          gitCheckout(
+            branch: params.BRANCH,
+            repoUrl: params.GITHUB_REPO_URL,
+            targetDir: 'app'
+          )
+        }
+      }
+    }
+    
+    // ========================================
+    // STAGE 3: CHECKOUT DEVOPS
+    // ========================================
+    stage('Checkout DevOps') {
+      steps {
+        script {
+          gitCheckout(
+            branch: 'master',
+            repoUrl: 'https://github.com/ravi2342/bug-report-portal-devops.git',
+            targetDir: 'devops'
+          )
+          
+          // Set build display name after both checkouts
+          currentBuild.displayName = "#${BUILD_NUMBER} - ${IMAGE_TAG}"
+          currentBuild.description = """
+            Branch: ${params.BRANCH}
+            Push: ${params.DO_PUSH}
+            Deploy: ${params.DO_DEPLOY}
+            SonarQube: ${params.RUN_SONAR}
+          """.stripIndent()
+        }
+      }
+    }
+    
+    // ========================================
+    // STAGE 4: PREFLIGHT CHECKS
     // ========================================
     stage('Preflight Checks') {
       steps {
@@ -93,7 +106,7 @@ pipeline {
     }
     
     // ========================================
-    // STAGE 3: DEPENDENCIES & BUILD SETUP
+    // STAGE 5: DEPENDENCIES & BUILD SETUP
     // ========================================
     stage('Setup') {
       steps {
@@ -109,7 +122,7 @@ pipeline {
     }
     
     // ========================================
-    // STAGE 4: QUALITY GATES (Lint & Tests)
+    // STAGE 6: QUALITY GATES (Lint & Tests)
     // ========================================
     stage('Quality Gates') {
       steps {
@@ -120,7 +133,7 @@ pipeline {
     }
     
     // ========================================
-    // STAGE 5: SONARQUBE SCAN (OPTIONAL)
+    // STAGE 7: SONARQUBE SCAN (OPTIONAL)
     // ========================================
     stage('SonarQube Scan') {
       when {
@@ -139,7 +152,7 @@ pipeline {
     }
     
     // ========================================
-    // STAGE 6: DOCKER BUILD
+    // STAGE 8: DOCKER BUILD
     // ========================================
     stage('Build Docker Image') {
       steps {
@@ -153,7 +166,7 @@ pipeline {
     }
     
     // ========================================
-    // STAGE 7: SECURITY SCAN (Trivy)
+    // STAGE 9: SECURITY SCAN (Trivy)
     // ========================================
     stage('Security Scan') {
       steps {
@@ -167,7 +180,7 @@ pipeline {
     }
     
     // ========================================
-    // STAGE 8: DOCKER PUSH (OPTIONAL)
+    // STAGE 10: DOCKER PUSH (OPTIONAL)
     // ========================================
     stage('Push to Registry') {
       when {
@@ -184,7 +197,7 @@ pipeline {
     }
     
     // ========================================
-    // STAGE 9: DEPLOY TO KUBERNETES (OPTIONAL)
+    // STAGE 11: DEPLOY TO KUBERNETES (OPTIONAL)
     // ========================================
     stage('Deploy to Kubernetes') {
       when {
@@ -205,7 +218,7 @@ pipeline {
     }
     
     // ========================================
-    // STAGE 10: NOTIFY STATUS
+    // STAGE 12: NOTIFY STATUS
     // ========================================
     stage('Notify') {
       steps {
