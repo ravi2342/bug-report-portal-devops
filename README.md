@@ -24,6 +24,7 @@ CI/CD pipeline automation and local development infrastructure with Docker Compo
 | **JENKINS_BUILD_PARAMETERS.md** | Pipeline parameters reference |
 | **ERROR_FIXES.md** | All 5 critical errors with solutions |
 | **BUILD_FAILURES.md** | Troubleshoot DevOps infrastructure failures |
+| **JENKINS_SETUP.md** | Configure Jenkins shared library (quick start) |
 | **QUICK_REFERENCE.md** | Fast command reference & troubleshooting |
 | **COMPLETE_TESTING.md** | All testing layers (unit, integration, E2E) |
 | **LOCAL_TESTING_COMPLETE_GUIDE.md** | Complete local testing for Windows/macOS/Linux |
@@ -222,9 +223,45 @@ For troubleshooting and debugging, see [ERROR_FIXES.md](ERROR_FIXES.md) for know
 
 ---
 
-## 📝 Common Issues
+## � Jenkins Shared Library
+
+This pipeline uses a **Jenkins Shared Library** for clean, reusable pipeline code.
+
+**Shared Library Repository:** [bugreportportal-sharedlib](https://github.com/ravi2342/bugreportportal-sharedlib)
+
+### Quick Setup (2 minutes)
+**Fastest way:** [JENKINS_FORM_GUIDE.md](JENKINS_FORM_GUIDE.md) - Copy-paste exact values into Jenkins form
+
+**What to do:**
+1. Go to: Jenkins > Manage Jenkins > System Configuration
+2. Scroll to: Global Trusted Pipeline Libraries
+3. Follow [JENKINS_FORM_GUIDE.md](JENKINS_FORM_GUIDE.md) - fill each field
+4. Click Save
+5. Create Jenkins job pointing to devops repo
+6. Run build - all 12 stages will use shared library functions
+
+**Documentation options:**
+- **Just want the form filled?** → [JENKINS_FORM_GUIDE.md](JENKINS_FORM_GUIDE.md) (2 min read)
+- **Want step-by-step walkthrough?** → [JENKINS_UI_GUIDE.md](JENKINS_UI_GUIDE.md) (5 min read)
+- **Need technical deep-dive?** → [SHARED_LIBRARY_SETUP.md](SHARED_LIBRARY_SETUP.md) (10 min read)
+
+**Pipeline benefits:**
+- ✓ 12 stages (realistic enterprise pipeline)
+- ✓ All stages calling functions from shared library
+- ✓ ~66% less code (257 lines vs 757 original)
+- ✓ Functions: gitCheckout, dockerBuild, k8sDeploy, trivyScan, sonarScan, etc.
+
+**Start here:** [JENKINS_FORM_GUIDE.md](JENKINS_FORM_GUIDE.md) ← Recommended!
+
+---
+
+## �📝 Common Issues
 
 **Having problems?** Check these resources:
+
+**Jenkins Shared Library Setup:**
+- **How to setup?** → [JENKINS_SETUP.md](JENKINS_SETUP.md) - 5-minute quick start guide
+- **Library not found error?** → [JENKINS_SETUP.md](JENKINS_SETUP.md#troubleshooting) - Troubleshooting section
 
 **Infrastructure & Pipeline Failures:**
 - **Jenkins build failed?** → [BUILD_FAILURES.md](BUILD_FAILURES.md) - Trivy, Docker, Kubernetes, Jenkins issues
@@ -236,6 +273,7 @@ For troubleshooting and debugging, see [ERROR_FIXES.md](ERROR_FIXES.md) for know
 - **SonarCloud quality gate?** → [bugreportportal/TROUBLESHOOTING.md](https://github.com/ravi2342/bugreportportal/blob/master/TROUBLESHOOTING.md)
 
 **Most common DevOps issues:**
+- Shared library "not found" error → SHARED_LIBRARY_SETUP.md
 - Trivy security scan failing (CVE vulnerabilities) → BUILD_FAILURES.md
 - Docker build failures → BUILD_FAILURES.md
 - Kubernetes deployment timeouts → BUILD_FAILURES.md
