@@ -249,6 +249,42 @@ automatically.
 so any screenshots that were previously stored in the old `emptyDir` are gone.
 This is a single-occurrence transition. All future uploads persist forever.
 
+**Important — orphaned attachment references after the transition:**
+
+When Postgres rows already point at filenames that lived in the old `emptyDir`,
+you'll get a confusing UX after the PVC switch:
+
+- The DB row still has `screenshot = '/uploads/<old-timestamp>-foo.png'` (Postgres
+  PVC was already persistent, so the reference survived)
+- The actual `<old-timestamp>-foo.png` file was in the old pod's `emptyDir` and
+  was deleted when that pod terminated
+- The new pod's `uploads-pvc` is empty
+- Express's static handler can't find the file, so the UI renders
+  `placeholder.png` even though the incident clearly "has an attachment"
+
+This is **not a bug in the new setup** — it's a one-time data inconsistency
+between the two PVCs caused by the transition. Three recovery options:
+
+1. **Re-upload via the UI Edit button** — drops the new file into the
+   persistent PVC and updates the DB reference. Best when you have copies of
+   the original files.
+
+2. **Null out the dead references** so the UI stops showing broken images:
+   ```bash
+   kubectl -n bug-report-portal-dev exec deploy/postgres -- \
+     psql -U postgres -d bugreportportal -c \
+     'UPDATE "BugReport" SET screenshot = NULL WHERE screenshot IS NOT NULL;'
+   ```
+
+3. **Full clean slate** (recommended if the data was test/demo only):
+   ```bash
+   kubectl -n bug-report-portal-dev exec deploy/postgres -- \
+     psql -U postgres -d bugreportportal -c \
+     'TRUNCATE "ActivityLog", "Comment", "BugReport" RESTART IDENTITY CASCADE;'
+   kubectl -n bug-report-portal-dev exec deploy/bug-report-portal-app -c app -- \
+     sh -c 'rm -rf /app/uploads/*'
+   ```
+
 **Scaling caveat:** `ReadWriteOnce` only supports **one pod** at a time. If you
 ever scale to `replicas: 2+`, switch to `ReadWriteMany` (NFS / cloud file
 share) or move uploads to object storage (S3 / MinIO).
@@ -257,7 +293,94 @@ share) or move uploads to object storage (S3 / MinIO).
 [QUICK_REFERENCE.md](QUICK_REFERENCE.md) for the one-liner that truncates the
 DB and clears the uploads PVC for a fresh demo.
 
-**Status:** ✅ Fixed (uploads PVC + manifest updates)
+**Verifying the fix end-to-end:** This is the gold-standard test that proves
+persistence across pod restarts:
+
+```bash
+# 1. Create an incident with a screenshot via the UI
+
+# 2. Confirm both layers stored it
+kubectl -n bug-report-portal-dev exec deploy/postgres -- \
+  psql -U postgres -d bugreportportal -c \
+  'SELECT id, title, screenshot FROM "BugReport";'
+kubectl -n bug-report-portal-dev exec deploy/bug-report-portal-app -c app -- \
+  ls /app/uploads/
+
+# 3. Force a fresh container
+kubectl -n bug-report-portal-dev delete pod -l app=bug-report-portal-app
+kubectl -n bug-report-portal-dev rollout status deploy/bug-report-portal-app
+
+# 4. The file should still be in the NEW pod's /app/uploads/
+kubectl -n bug-report-portal-dev exec deploy/bug-report-portal-app -c app -- \
+  ls /app/uploads/
+```
+
+If step 4 shows the same filename from step 2, persistence is working.
+
+**Status:** ✅ Fixed (uploads PVC + manifest updates, verified end-to-end)
+
+---
+
+## Issue #8: How to baseline an existing Postgres DB to Prisma migration history
+
+**When this applies:** You have a Postgres database whose schema was created by
+something other than `prisma migrate deploy` (e.g. `prisma db push`, manual
+`CREATE TABLE` statements, a restored backup). The `_prisma_migrations` table
+is either empty or out of sync with `prisma/migrations/*`. The next time
+`prisma migrate deploy` runs (e.g. via the `db-migrate` initContainer from
+Issue #6), it will try to apply migration #1's `CREATE TABLE "BugReport"...`
+statement and fail with:
+
+```
+Error: P3009 — migrate found failed migrations in the target database
+... "BugReport" already exists ...
+```
+
+**Fix without losing data — mark all existing migrations as applied:**
+
+```bash
+POD=$(kubectl -n bug-report-portal-dev get pod \
+  -l app=bug-report-portal-app -o jsonpath='{.items[0].metadata.name}')
+
+kubectl -n bug-report-portal-dev exec "$POD" -c app -- sh -c '
+  cd /app
+  for m in $(ls prisma/migrations | grep -v migration_lock); do
+    echo "--- resolving $m ---"
+    npx prisma migrate resolve --applied "$m" 2>&1 | tail -3
+  done
+'
+```
+
+This tells Prisma "the schema is already at this revision, do not re-apply."
+It only writes rows into `_prisma_migrations` — your actual data tables are
+untouched.
+
+**Verify the baseline:**
+
+```bash
+kubectl -n bug-report-portal-dev exec deploy/postgres -- \
+  psql -U postgres -d bugreportportal -c \
+  'SELECT migration_name, finished_at IS NOT NULL AS applied
+     FROM "_prisma_migrations"
+   ORDER BY started_at;'
+```
+
+All migrations should show `applied | t`. The next `prisma migrate deploy`
+(from the initContainer or local CLI) should now print:
+
+```
+N migrations found in prisma/migrations
+No pending migrations to apply.
+```
+
+**When to use this vs. dropping the schema:**
+
+| You have... | Do this |
+|---|---|
+| Real data you must keep | Baseline (this Issue's fix) |
+| Demo / test data, fine to lose | `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` then let `migrate deploy` start fresh |
+
+**Status:** ✅ Documented (used during initial PVC migration on 2026-06-14)
 
 ---
 
@@ -272,3 +395,9 @@ DB and clears the uploads PVC for a fresh demo.
 - [x] Kubernetes deployment receives correct image
 - [x] No hardcoded Docker Hub usernames
 - [x] All parameters come from Jenkins job configuration
+- [x] Prisma migrations folder shipped in image (not excluded by `.dockerignore`)
+- [x] `db-migrate` initContainer runs `prisma migrate deploy` (idempotent)
+- [x] Postgres schema persists across pod restarts (`postgres-pvc`)
+- [x] Uploaded files persist across pod restarts (`uploads-pvc`)
+- [x] Persistence verified end-to-end: file survives `kubectl delete pod`
+- [x] Demo reset workflow documented in `QUICK_REFERENCE.md`
