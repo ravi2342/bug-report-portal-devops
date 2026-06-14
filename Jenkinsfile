@@ -212,7 +212,7 @@ pipeline {
             imageTag: "${env.IMAGE_TAG}",
             clusterContext: 'kind-bug-report-portal',
             namespace: 'bug-report-portal',
-            deploymentName: 'bug-report-portal-app',
+            deploymentName: 'bugreportportal',
             skipTlsVerify: true,
             manifestDir: 'devops/k8s'
           )
