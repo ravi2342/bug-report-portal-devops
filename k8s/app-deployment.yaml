@@ -30,16 +30,17 @@ spec:
                 secretKeyRef:
                   name: bug-report-portal-secrets
                   key: POSTGRES_USER
-        - name: init-database
+        - name: db-migrate
           image: bugreportportal
+          imagePullPolicy: Always
           command:
             - sh
             - -c
             - |
               cd /app
-              echo "🔄 Initializing database schema..."
-              npx prisma db push --skip-generate --accept-data-loss
-              echo "✅ Database schema initialized"
+              echo "🔄 Applying Prisma migrations..."
+              npx prisma migrate deploy
+              echo "✅ Migrations applied"
           envFrom:
             - configMapRef:
                 name: bug-report-portal-config
