@@ -35,8 +35,10 @@ docker compose exec -T jenkins cat /var/jenkins_home/secrets/initialAdminPasswor
 
 1. **[JENKINS_SETUP.md](JENKINS_SETUP.md)** - Configure Jenkins with shared library (5 min)
 2. **[KIND_SETUP.md](KIND_SETUP.md)** - Setup Kubernetes cluster
-3. **[JENKINS_BUILD_PARAMETERS_SIMPLIFIED.md](JENKINS_BUILD_PARAMETERS_SIMPLIFIED.md)** - Build parameters
-4. **[ERROR_FIXES_SIMPLIFIED.md](ERROR_FIXES_SIMPLIFIED.md)** - Troubleshooting
+3. **[NAMESPACE_AND_DEPLOYMENT.md](NAMESPACE_AND_DEPLOYMENT.md)** - Understanding namespace and environment configuration ⭐ **START HERE FOR E2E**
+4. **[JENKINS_BUILD_PARAMETERS.md](JENKINS_BUILD_PARAMETERS.md)** - Build parameters explained
+5. **[E2E_DEPLOYMENT.md](E2E_DEPLOYMENT.md)** - Complete end-to-end deployment walkthrough
+6. **[ERROR_FIXES.md](ERROR_FIXES.md)** - Troubleshooting common issues
 
 ---
 

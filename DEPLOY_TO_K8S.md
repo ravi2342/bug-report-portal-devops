@@ -10,6 +10,7 @@
 **Otherwise, use:**
 - 👉 **[TESTING.md](TESTING.md)** - Automated deployment via Jenkins (Recommended)
 - 👉 **[E2E_DEPLOYMENT.md](E2E_DEPLOYMENT.md)** - Complete pipeline walkthrough
+- 👉 **[NAMESPACE_AND_DEPLOYMENT.md](NAMESPACE_AND_DEPLOYMENT.md)** - Namespace and environment configuration
 
 ---
 
@@ -72,7 +73,7 @@ export IMAGE_TAG="demu147/bugreportportal:1.0.0-15"
 kubectl config use-context kind-bug-report-portal
 
 # Verify namespace exists (or create via kustomize)
-kubectl get namespace bug-report-portal || kubectl apply -k k8s/
+kubectl get namespace bug-report-portal-dev || kubectl apply -k k8s/
 
 # Navigate to k8s directory
 cd k8s
@@ -84,11 +85,11 @@ kustomize edit set image bugreportportal=${IMAGE_TAG}
 kubectl apply -k .
 
 # Wait for application to rollout
-kubectl rollout status deployment/bug-report-portal-app -n bug-report-portal --timeout=120s
+kubectl rollout status deployment/bug-report-portal-app -n bug-report-portal-dev --timeout=120s
 
 # Verify deployment
-kubectl get pods -n bug-report-portal
-kubectl get deployment -n bug-report-portal bug-report-portal-app -o yaml | grep -A 3 "image:"
+kubectl get pods -n bug-report-portal-dev
+kubectl get deployment -n bug-report-portal-dev bug-report-portal-app -o yaml | grep -A 3 "image:"
 ```
 
 ---
@@ -97,13 +98,13 @@ kubectl get deployment -n bug-report-portal bug-report-portal-app -o yaml | grep
 
 **Option A: Foreground (keep terminal open)**
 ```bash
-kubectl port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000 \
+kubectl port-forward -n bug-report-portal-dev svc/bug-report-portal-service 8888:3000 \
   --insecure-skip-tls-verify
 ```
 
 **Option B: Background (recommended)**
 ```bash
-kubectl port-forward -n bug-report-portal svc/bug-report-portal-service 8888:3000 \
+kubectl port-forward -n bug-report-portal-dev svc/bug-report-portal-service 8888:3000 \
   --insecure-skip-tls-verify > ~/.kube/portforward.log 2>&1 &
 ```
 
@@ -122,13 +123,13 @@ http://localhost:8888
 
 ```bash
 # Check pod status
-kubectl get pods -n bug-report-portal -w
+kubectl get pods -n bug-report-portal-dev -w
 
 # View application logs
-kubectl logs -n bug-report-portal -l app=bug-report-portal-app -f
+kubectl logs -n bug-report-portal-dev -l app=bug-report-portal-app -f
 
 # Describe pod for events
-kubectl describe pod -n bug-report-portal <POD_NAME>
+kubectl describe pod -n bug-report-portal-dev <POD_NAME>
 ```
 
 ---
@@ -137,7 +138,7 @@ kubectl describe pod -n bug-report-portal <POD_NAME>
 
 **Pod stuck in CrashLoopBackOff?**
 ```bash
-kubectl logs -n bug-report-portal <POD_NAME> --previous
+kubectl logs -n bug-report-portal-dev <POD_NAME> --previous
 ```
 
 **Image pull errors (ImagePullBackOff)?**
@@ -146,19 +147,19 @@ kubectl logs -n bug-report-portal <POD_NAME> --previous
 docker pull demu147/bugreportportal:1.0.0-15
 
 # Check imagePullPolicy in deployment
-kubectl get deployment -n bug-report-portal bug-report-portal-app -o jsonpath='{.spec.template.spec.containers[0].imagePullPolicy}'
+kubectl get deployment -n bug-report-portal-dev bug-report-portal-app -o jsonpath='{.spec.template.spec.containers[0].imagePullPolicy}'
 ```
 
 **Database connectivity issues?**
 ```bash
 # Verify postgres is running
-kubectl get pods -n bug-report-portal | grep postgres
+kubectl get pods -n bug-report-portal-dev | grep postgres
 
 # Check postgres logs
-kubectl logs -n bug-report-portal <POSTGRES_POD_NAME>
+kubectl logs -n bug-report-portal-dev <POSTGRES_POD_NAME>
 
 # Test postgres connectivity
-kubectl exec -it -n bug-report-portal <APP_POD_NAME> -- psql -h postgres -U postgres -d bugreportportal -c "SELECT 1"
+kubectl exec -it -n bug-report-portal-dev <APP_POD_NAME> -- psql -h postgres -U postgres -d bugreportportal -c "SELECT 1"
 ```
 
 **Certificate validation error with kubectl?**

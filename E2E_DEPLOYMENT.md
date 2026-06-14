@@ -23,6 +23,7 @@ This is a **comprehensive pipeline walkthrough** that explains:
 | If You Want | Use This Guide |
 |-------------|--------|
 | **Full pipeline explanation** | ✅ E2E_DEPLOYMENT.md (this one) |
+| **Namespace and environment setup** | [NAMESPACE_AND_DEPLOYMENT.md](NAMESPACE_AND_DEPLOYMENT.md) - How namespaces are created and environments work |
 | **Quick deployment** | [TESTING.md](TESTING.md) - Shorter, focused on execution |
 | **Manual deployment without Jenkins** | [DEPLOY_TO_K8S.md](DEPLOY_TO_K8S.md) - Fallback guide |
 | **Complete setup from scratch** | [LOCAL_TESTING_COMPLETE_GUIDE.md](LOCAL_TESTING_COMPLETE_GUIDE.md) - All OS, all steps |
