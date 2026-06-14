@@ -1,0 +1,13 @@
+# Deployment configuration per environment.
+# Loaded by the Jenkins pipeline via readYaml and passed to k8sDeploy.
+# Add a new top-level key under `environments:` to support a new target
+# (e.g. staging, prod) and select it at build time via the TARGET_ENV param.
+
+environments:
+  dev:
+    clusterContext: kind-bug-report-portal
+    namespace: bug-report-portal
+    deploymentName: bug-report-portal-app   # metadata.name of the Deployment resource
+    imageName: bugreportportal              # name placeholder in k8s/kustomization.yaml's images: block
+    manifestDir: devops/k8s
+    skipTlsVerify: true

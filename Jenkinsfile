@@ -20,7 +20,8 @@ properties([
     string(name: 'REGISTRY_CREDENTIALS_ID', defaultValue: 'dockerhub-creds-pat', description: 'Jenkins credentials ID for Docker Hub login'),
     string(name: 'SONAR_HOST_URL', defaultValue: 'http://sonarqube:9000', description: 'SonarQube URL (Local: http://sonarqube:9000, Cloud: https://sonarcloud.io)'),
     string(name: 'SONAR_PROJECT_KEY', defaultValue: 'bug-report-portal', description: 'SonarQube project key'),
-    string(name: 'SONAR_TOKEN_CREDENTIALS_ID', defaultValue: 'sonar-token', description: 'Jenkins credentials ID for Sonar token')
+    string(name: 'SONAR_TOKEN_CREDENTIALS_ID', defaultValue: 'sonar-token', description: 'Jenkins credentials ID for Sonar token'),
+    choice(name: 'TARGET_ENV', choices: ['dev'], description: 'Deployment environment (must match a key under environments: in devops/deploy-config.yaml)')
   ])
 ])
 
@@ -208,14 +209,20 @@ pipeline {
       }
       steps {
         script {
+          def allEnvs = readYaml(file: 'devops/deploy-config.yaml').environments
+          def cfg = allEnvs[params.TARGET_ENV]
+          if (!cfg) {
+            error("TARGET_ENV '${params.TARGET_ENV}' not found in devops/deploy-config.yaml (available: ${allEnvs.keySet()})")
+          }
+
           k8sDeploy(
             imageTag: "${env.IMAGE_TAG}",
-            clusterContext: 'kind-bug-report-portal',
-            namespace: 'bug-report-portal',
-            deploymentName: 'bug-report-portal-app',
-            imageName: 'bugreportportal',
-            skipTlsVerify: true,
-            manifestDir: 'devops/k8s'
+            clusterContext: cfg.clusterContext,
+            namespace: cfg.namespace,
+            deploymentName: cfg.deploymentName,
+            imageName: cfg.imageName,
+            skipTlsVerify: cfg.skipTlsVerify != null ? cfg.skipTlsVerify : true,
+            manifestDir: cfg.manifestDir
           )
         }
       }
