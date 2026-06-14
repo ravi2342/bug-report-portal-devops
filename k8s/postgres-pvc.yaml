@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: postgres-pvc
-  namespace: bug-report-portal
+  namespace: bug-report-portal-dev
 spec:
   accessModes:
     - ReadWriteOnce

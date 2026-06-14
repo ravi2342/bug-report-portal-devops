@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: bug-report-portal-ingress
-  namespace: bug-report-portal
+  namespace: bug-report-portal-dev
 spec:
   ingressClassName: nginx
   rules:

@@ -6,7 +6,7 @@
 environments:
   dev:
     clusterContext: kind-bug-report-portal
-    namespace: bug-report-portal
+    namespace: bug-report-portal-dev
     deploymentName: bug-report-portal-app   # metadata.name of the Deployment resource
     imageName: bugreportportal              # name placeholder in k8s/kustomization.yaml's images: block
     manifestDir: devops/k8s
