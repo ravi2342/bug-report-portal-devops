@@ -30,6 +30,21 @@ spec:
                 secretKeyRef:
                   name: bug-report-portal-secrets
                   key: POSTGRES_USER
+        - name: init-database
+          image: bugreportportal
+          command:
+            - sh
+            - -c
+            - |
+              cd /app
+              echo "🔄 Initializing database schema..."
+              npx prisma db push --skip-generate --accept-data-loss
+              echo "✅ Database schema initialized"
+          envFrom:
+            - configMapRef:
+                name: bug-report-portal-config
+            - secretRef:
+                name: bug-report-portal-secrets
       containers:
         - name: app
           image: bugreportportal
