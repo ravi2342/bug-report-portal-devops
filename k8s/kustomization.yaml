@@ -13,9 +13,8 @@ resources:
   - ingress.yaml
 
 # Image patching configuration for dynamic Docker Hub updates
-# This allows Jenkins to inject the build-specific image tag at runtime
-# The actual image name/tag is set by k8sDeploy function via: kustomize edit set image
+# This allows Jenkins to inject the build-specific image tag
 images:
   - name: bugreportportal
-    # newName and newTag are set dynamically by k8sDeploy stage
-    # Do not hardcode here - will be overridden at runtime
+    newName: demu147/bugreportportal
+    newTag: latest  # Will be overridden by Jenkinsfile via kustomize edit
