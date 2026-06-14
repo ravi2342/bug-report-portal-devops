@@ -277,7 +277,7 @@ pipeline {
         ║ Next: Access your application                               ║
         ║                                                               ║
         ║ 1. Port-forward to the service:                              ║
-        ║    kubectl port-forward -n bug-report-portal-dev \          ║
+        ║    kubectl port-forward -n bug-report-portal-dev \\         ║
         ║      svc/bug-report-portal-service 8888:3000                 ║
         ║                                                               ║
         ║ 2. Open in browser:                                          ║
@@ -291,7 +291,7 @@ pipeline {
         ║    kubectl get pods -n bug-report-portal-dev                 ║
         ║                                                               ║
         ║ 5. View logs:                                                ║
-        ║    kubectl logs -n bug-report-portal-dev \                  ║
+        ║    kubectl logs -n bug-report-portal-dev \\                 ║
         ║      -l app=bug-report-portal-app --tail=100 -f              ║
         ╚═══════════════════════════════════════════════════════════════╝
           """
