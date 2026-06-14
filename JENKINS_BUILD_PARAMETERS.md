@@ -6,7 +6,7 @@
 |-----------|---------|---------|
 | `BRANCH` | `master` | Git branch |
 | `GITHUB_REPO_URL` | `https://github.com/ravi2342/bugreportportal.git` | App repo |
-| `DOCKER_IMAGE_PATH` | `demu147/bugreportportal` | Docker image (username/name) |
+| `DOCKER_IMAGE_PATH` | `demu147/bugreportportal` | Docker image (default works for demo) |
 | `DO_PUSH` | `false` | Push to Docker Hub |
 | `DO_DEPLOY` | `false` | Deploy to Kubernetes |
 | `RUN_SONAR` | `false` | Run SonarQube analysis |
@@ -27,9 +27,10 @@
 
 ## Quick Examples
 
-**Build only (no push, no deploy):**
+**Build only (no push, no deploy) — Demo default:**
 ```
 BRANCH = master
+DOCKER_IMAGE_PATH = demu147/bugreportportal (default - works for demo)
 DO_PUSH = false
 DO_DEPLOY = false
 RUN_SONAR = false
@@ -38,11 +39,13 @@ RUN_SONAR = false
 **Full pipeline (build → push → deploy):**
 ```
 BRANCH = master
-DOCKER_IMAGE_PATH = demu147/bugreportportal
+DOCKER_IMAGE_PATH = demu147/bugreportportal (or your-username/your-app)
 DO_PUSH = true
 DO_DEPLOY = true
 RUN_SONAR = true
 ```
+
+**💡 Note:** Use default `DOCKER_IMAGE_PATH = demu147/bugreportportal` for demo. Change to your Docker Hub username/image for production.
 
 ## 12-Stage Pipeline
 

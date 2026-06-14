@@ -13,7 +13,7 @@ properties([
   parameters([
     string(name: 'BRANCH', defaultValue: 'master', description: 'Git branch to build'),
     string(name: 'GITHUB_REPO_URL', defaultValue: 'https://github.com/ravi2342/bugreportportal.git', description: 'GitHub application repository URL'),
-    string(name: 'DOCKER_IMAGE_PATH', defaultValue: 'demu147/bugreportportal', description: 'Docker image path (username/imagename)'),
+    string(name: 'DOCKER_IMAGE_PATH', defaultValue: 'demu147/bugreportportal', description: 'Docker image path (format: username/imagename). Default works for demo. Change if using different registry.'),
     booleanParam(name: 'DO_PUSH', defaultValue: false, description: 'Push Docker image to registry'),
     booleanParam(name: 'DO_DEPLOY', defaultValue: false, description: 'Deploy to Kubernetes'),
     booleanParam(name: 'RUN_SONAR', defaultValue: false, description: 'Run SonarQube scan'),
