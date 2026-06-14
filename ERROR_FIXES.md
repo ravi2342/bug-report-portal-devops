@@ -112,6 +112,155 @@ sonarScan(
 
 ---
 
+## Issue #6: Postgres only has `_prisma_migrations` table — schema never applied
+
+**Error (from app pod logs):**
+```
+❌ [Dashboard] Prisma error: The table `public.BugReport` does not exist in the
+   current database.
+```
+
+**Symptom in cluster:**
+```bash
+kubectl -n bug-report-portal-dev exec deploy/postgres -- \
+  psql -U postgres -d bugreportportal -c "\dt"
+# Only _prisma_migrations is listed; BugReport / Comment / ActivityLog missing
+```
+
+**Root Cause (two bugs stacked):**
+
+1. The `init-database` init container in `k8s/app-deployment.yaml` ran:
+   ```bash
+   npx prisma db push --skip-generate --accept-data-loss
+   ```
+   `--skip-generate` is **not** a valid flag for `prisma db push` (it only
+   applies to `prisma migrate dev`). The Prisma CLI exits non-zero, but the
+   surrounding shell echo (`echo "✅ Database schema initialized"`) runs anyway
+   and the initContainer reports success. Only the `_prisma_migrations`
+   bookkeeping table is created — from the Prisma engine's connect-time
+   handshake — before the CLI bails out.
+
+2. Even if the flag had been valid, `prisma db push` is a dev-only shortcut
+   that syncs the schema without recording any migration history. That breaks
+   forward compatibility with `prisma migrate deploy` in the main container.
+
+3. (Companion bug in the app repo) `.dockerignore` excluded `prisma/migrations`,
+   so the main container's `npx prisma migrate deploy` printed
+   `No migration found in prisma/migrations` and applied nothing. See
+   [bugreportportal/docs/PRISMA_MIGRATIONS_DOCKERIGNORE.md](https://github.com/ravi2342/bugreportportal/blob/master/docs/PRISMA_MIGRATIONS_DOCKERIGNORE.md).
+
+**Solution:** Replace the broken init container with one that uses the correct,
+production-grade Prisma command. In `k8s/app-deployment.yaml`:
+
+```yaml
+- name: db-migrate
+  image: bugreportportal
+  imagePullPolicy: Always
+  command:
+    - sh
+    - -c
+    - |
+      cd /app
+      echo "🔄 Applying Prisma migrations..."
+      npx prisma migrate deploy
+      echo "✅ Migrations applied"
+  envFrom:
+    - configMapRef:
+        name: bug-report-portal-config
+    - secretRef:
+        name: bug-report-portal-secrets
+```
+
+Why `prisma migrate deploy`:
+- Uses the `_prisma_migrations` history table — idempotent across pod restarts
+- Production-recommended by Prisma docs (vs. `db push` which is dev-only)
+- Pairs with migration files now included in the image (companion fix)
+
+**One-time DB baseline (only needed if your DB was created by the broken
+`db push` path before this fix):**
+
+```bash
+POD=$(kubectl -n bug-report-portal-dev get pod -l app=bug-report-portal-app -o jsonpath='{.items[0].metadata.name}')
+kubectl -n bug-report-portal-dev exec "$POD" -c app -- sh -c '
+  cd /app
+  for m in $(ls prisma/migrations | grep -v migration_lock); do
+    npx prisma migrate resolve --applied "$m"
+  done
+'
+```
+
+This tells Prisma "the schema is already at HEAD; don't re-apply these"
+without dropping any data. Future `migrate deploy` runs become no-ops.
+
+**Status:** ✅ Fixed (commit `9d5eb9d` — init container replaced)
+
+---
+
+## Issue #7: Uploaded screenshots disappear after every deploy
+
+**Symptom:** Create an incident with a screenshot. UI shows the image. Trigger
+another Jenkins build (or `kubectl delete pod ...`). Open the same incident —
+the DB row is still there but the `<img>` is a broken link, and
+`/app/uploads/` is empty in the new pod.
+
+**Root Cause:** `k8s/app-deployment.yaml` mounted `/app/uploads/` from an
+`emptyDir` volume:
+
+```yaml
+volumes:
+  - name: uploads
+    emptyDir: {}   # lives only as long as the pod
+```
+
+`emptyDir` is bound to the **pod lifecycle**, not the node. Any pod replacement
+(rolling update, eviction, `kubectl delete pod`) wipes the directory. The
+Postgres rows survive (they live in `postgres-pvc`), so the DB ends up
+referencing filenames that no longer exist on disk.
+
+**Solution:** Back `/app/uploads/` with a dedicated PVC so files persist across
+all pod restarts and image rollouts. New manifest `k8s/uploads-pvc.yaml`:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: uploads-pvc
+  namespace: bug-report-portal-dev
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+And in `k8s/app-deployment.yaml`:
+
+```yaml
+volumes:
+  - name: uploads
+    persistentVolumeClaim:
+      claimName: uploads-pvc
+```
+
+Also added to `k8s/kustomization.yaml` so `kubectl apply -k k8s/` provisions it
+automatically.
+
+**One-time cost:** The first deploy after this change starts with an empty PVC,
+so any screenshots that were previously stored in the old `emptyDir` are gone.
+This is a single-occurrence transition. All future uploads persist forever.
+
+**Scaling caveat:** `ReadWriteOnce` only supports **one pod** at a time. If you
+ever scale to `replicas: 2+`, switch to `ReadWriteMany` (NFS / cloud file
+share) or move uploads to object storage (S3 / MinIO).
+
+**Demo reset:** See the new "Reset Demo Data (Clean Slate)" section in
+[QUICK_REFERENCE.md](QUICK_REFERENCE.md) for the one-liner that truncates the
+DB and clears the uploads PVC for a fresh demo.
+
+**Status:** ✅ Fixed (uploads PVC + manifest updates)
+
+---
+
 ## Verification Checklist
 
 - [x] Build completes without syntax errors

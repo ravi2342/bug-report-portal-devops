@@ -478,6 +478,45 @@ If all checks pass ✓, your deployment is healthy!
 
 ---
 
+## 🧹 Reset Demo Data (Clean Slate)
+
+Both Postgres rows AND uploaded screenshots persist across deploys (PVCs). When
+you want a fresh portal for a demo, wipe both in one go:
+
+```bash
+# 1. Truncate all app tables (keeps the schema, drops all rows)
+kubectl -n bug-report-portal-dev exec deploy/postgres -- \
+  psql -U postgres -d bugreportportal -c \
+  'TRUNCATE "ActivityLog", "Comment", "BugReport" RESTART IDENTITY CASCADE;'
+
+# 2. Delete all uploaded screenshots
+kubectl -n bug-report-portal-dev exec deploy/bug-report-portal-app -c app -- \
+  sh -c 'rm -rf /app/uploads/*'
+
+# 3. Confirm empty
+kubectl -n bug-report-portal-dev exec deploy/postgres -- \
+  psql -U postgres -d bugreportportal -c \
+  'SELECT '\''BugReport'\'' AS t, COUNT(*) FROM "BugReport"
+   UNION ALL SELECT '\''Comment'\'', COUNT(*) FROM "Comment"
+   UNION ALL SELECT '\''ActivityLog'\'', COUNT(*) FROM "ActivityLog";'
+```
+
+Expected after reset:
+
+```
+      t      | count
+-------------+-------
+ BugReport   |     0
+ Comment     |     0
+ ActivityLog |     0
+```
+
+`RESTART IDENTITY CASCADE` resets the auto-increment IDs so your next incident
+starts at #1 again. Schema, migrations history, and pod state are untouched —
+only the demo data goes away.
+
+---
+
 ## Need Help?
 
 1. **Check ERROR_FIXES.md** - Complete solutions for all known issues
