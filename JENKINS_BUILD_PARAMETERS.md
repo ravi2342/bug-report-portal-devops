@@ -1,94 +1,64 @@
-# Jenkins Build Parameters - Quick Reference
+# Jenkins Build Parameters
 
----
-
-## 🔗 Git & Repository
+## Core Parameters
 
 | Parameter | Default | Purpose |
 |-----------|---------|---------|
-| `BRANCH` | `master` | Git branch to build |
-| `GITHUB_REPO_URL` | `https://github.com/ravi2342/bugreportportal.git` | Application repo |
-| `DEVOPS_REPO_URL` | `https://github.com/ravi2342/bug-report-portal-devops.git` | DevOps repo |
+| `BRANCH` | `master` | Git branch |
+| `GITHUB_REPO_URL` | `https://github.com/ravi2342/bugreportportal.git` | App repo |
+| `DOCKER_IMAGE_PATH` | `demu147/bugreportportal` | Docker image (username/name) |
+| `DO_PUSH` | `false` | Push to Docker Hub |
+| `DO_DEPLOY` | `false` | Deploy to Kubernetes |
+| `RUN_SONAR` | `false` | Run SonarQube analysis |
 
----
-
-## 🐳 Docker & Registry
-
-| Parameter | Default | Purpose |
-|-----------|---------|---------|
-| `DO_PUSH` | `false` | Push image to registry (true/false) |
-| `REGISTRY_URL` | `` | Registry URL (e.g., `ghcr.io`, `docker.io`) |
-| `REGISTRY_CREDENTIALS_ID` | `` | Jenkins credential ID for registry login |
-
----
-
-## ☸️ Kubernetes Deployment
+## SonarQube (if RUN_SONAR=true)
 
 | Parameter | Default | Purpose |
 |-----------|---------|---------|
-| `DO_DEPLOY` | `false` | Deploy to K8s cluster (true/false) |
+| `SONAR_HOST_URL` | `http://sonarqube:9000` | SonarQube URL |
+| `SONAR_PROJECT_KEY` | `bug-report-portal` | Project key |
+| `SONAR_TOKEN_CREDENTIALS_ID` | `sonar-token` | Jenkins credential |
+
+## Credentials Required in Jenkins
+
+- **dockerhub-creds-pat** - Docker Hub username/password
+- **github-pat** - GitHub PAT (for shared library)
+- **sonar-token** - SonarQube token (if RUN_SONAR=true)
+
+## Quick Examples
+
+**Build only (no push, no deploy):**
+```
+BRANCH = master
+DO_PUSH = false
+DO_DEPLOY = false
+RUN_SONAR = false
+```
+
+**Full pipeline (build → push → deploy):**
+```
+BRANCH = master
+DOCKER_IMAGE_PATH = demu147/bugreportportal
+DO_PUSH = true
+DO_DEPLOY = true
+RUN_SONAR = true
+```
+
+## 12-Stage Pipeline
+
+1. Clean Workspace
+2. Checkout Application
+3. Checkout DevOps
+4. Preflight Checks
+5. Setup (install deps, Prisma)
+6. Quality Gates (lint, tests)
+7. SonarQube (optional)
+8. Build Docker Image
+9. Security Scan (Trivy)
+10. Push to Registry (optional)
+11. Deploy to Kubernetes (optional)
+12. Notify Status
 
 ---
 
-## 📊 Code Quality & Security
-
-| Parameter | Default | Purpose |
-|-----------|---------|---------|
-| `RUN_SONAR` | `false` | Run SonarQube scan (true/false) |
-| `SONAR_HOST_URL` | `` | SonarQube server URL |
-| `SONAR_TOKEN_CREDENTIALS_ID` | `` | Jenkins credential ID for Sonar token |
-| `RUN_CHECKMARX` | `false` | Run Checkmarx SAST (true/false) |
-| `CHECKMARX_COMMAND` | `` | Checkmarx CLI command |
-
----
-
-## 🧪 Testing
-
-| Parameter | Default | Purpose |
-|-----------|---------|---------|
-| `RUN_POST_DEPLOY_TESTS` | `false` | Run smoke tests after deploy |
-| `RUN_UI_E2E` | `false` | Run UI E2E tests |
-| `E2E_COMMAND` | `` | E2E test command (e.g., `npm run test:e2e`) |
-
----
-
-## 📋 Example Scenarios
-
-### Local Build Only
-```
-BRANCH=develop
-DO_PUSH=false
-DO_DEPLOY=false
-RUN_SONAR=false
-```
-
-### Push to Staging Registry
-```
-BRANCH=master
-DO_PUSH=true
-REGISTRY_URL=ghcr.io
-REGISTRY_CREDENTIALS_ID=github-token
-DO_DEPLOY=false
-```
-
-### Full Production Pipeline
-```
-BRANCH=release/v1.0.0
-DO_PUSH=true
-DO_DEPLOY=true
-RUN_SONAR=true
-SONAR_HOST_URL=http://host.docker.internal:9000
-SONAR_TOKEN_CREDENTIALS_ID=sonar-token
-RUN_CHECKMARX=true
-CHECKMARX_COMMAND=cx scan create --project-name bug-report-portal --scan-types sast
-```
-
----
-
-## ✅ Setup Checklist
-
-- [ ] SonarQube server running
-- [ ] SonarQube token created in Jenkins credentials (as `sonar-token`)
-- [ ] Registry credentials created in Jenkins
-- [ ] kubectl configured and accessible
-- [ ] Secrets in `k8s/app-secret.template.yaml` updated
+**See ERROR_FIXES_SIMPLIFIED.md for troubleshooting**
