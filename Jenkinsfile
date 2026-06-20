@@ -11,7 +11,8 @@
 // ========================================
 properties([
   parameters([
-    string(name: 'BRANCH', defaultValue: 'master', description: 'Git branch to build'),
+    string(name: 'BRANCH', defaultValue: 'master', description: 'Git branch for app code (https://github.com/ravi2342/bugreportportal)'),
+    string(name: 'DEVOPS_BRANCH', defaultValue: 'master', description: 'Git branch for devops repo (https://github.com/ravi2342/bug-report-portal-devops) - set to feature/postgres-statefulset to test new K8s configs'),
     string(name: 'GITHUB_REPO_URL', defaultValue: 'https://github.com/ravi2342/bugreportportal.git', description: 'GitHub application repository URL'),
     string(name: 'DOCKER_IMAGE_PATH', defaultValue: 'demu147/bugreportportal', description: 'Docker image path (format: username/imagename). Default works for demo. Change if using different registry.'),
     booleanParam(name: 'DO_PUSH', defaultValue: false, description: 'Push Docker image to registry'),
@@ -77,7 +78,7 @@ pipeline {
       steps {
         script {
           gitCheckout(
-            branch: 'master',
+            branch: params.DEVOPS_BRANCH ?: 'master',
             repoUrl: 'https://github.com/ravi2342/bug-report-portal-devops.git',
             targetDir: 'devops'
           )
