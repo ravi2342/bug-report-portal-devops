@@ -59,6 +59,19 @@ bug-report-portal-devops/
 
 ---
 
+## 🏗️ Architecture
+
+**Two PostgreSQL instances (separate concerns):**
+
+| Instance | Used by | Location | Persistence |
+|----------|---------|----------|-------------|
+| **docker-compose postgres** | SonarQube | Your Mac (docker-compose) | Docker volume |
+| **K8s StatefulSet postgres** | Bug Report Portal app | Kubernetes cluster | PVC (production-ready) |
+
+**Dependencies:** Automatically handled by K8s init containers - see [POSTGRES_STATEFULSET_LOCAL_TEST.md](POSTGRES_STATEFULSET_LOCAL_TEST.md) for detailed dependency flow.
+
+---
+
 ## ⚙️ 12-Stage Pipeline
 
 1. Clean Workspace

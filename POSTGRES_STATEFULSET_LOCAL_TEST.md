@@ -2,6 +2,28 @@
 
 Test PostgreSQL StatefulSet locally in Kind cluster before moving to AWS EKS.
 
+## Architecture & Dependencies
+
+When you run `kubectl apply -k k8s/`, Kubernetes applies all resources simultaneously, but dependencies are managed automatically:
+
+```
+1. Namespace created first
+   ↓
+2. ConfigMaps, Secrets, PostgreSQL StatefulSet created (in parallel)
+   ↓
+3. Postgres pod starts → postgres:5432 service available
+   ↓
+4. App Deployment pod created
+   ├─ wait-for-postgres init container
+   │  └─ Polls postgres:5432 until ready (handles timing)
+   ├─ db-migrate init container  
+   │  └─ Runs `npx prisma migrate deploy` (creates tables)
+   └─ app container
+      └─ Starts when both init containers complete
+```
+
+**Key:** Init containers provide implicit sequencing without needing Kubernetes resource dependencies.
+
 ## Quick Start (5 minutes)
 
 ### Step 1: Start CI Infrastructure
