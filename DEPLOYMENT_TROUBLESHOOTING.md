@@ -336,6 +336,123 @@ echo "" && echo "PVCs:" && kubectl get pvc -n bug-report-portal-dev
 
 **All 11 checks passing = Healthy Pod Communication** ✅
 
+## Data Persistence Verification
+
+Verify that incident data survives pod restarts (the core benefit of StatefulSet + PVC):
+
+### Step 1: Check Current Data Before Restart
+```bash
+kubectl exec -n bug-report-portal-dev postgres-0 -- \
+  psql -U postgres -d bugreportportal -c "SELECT COUNT(*) FROM \"BugReport\";"
+# Output: 1 (or more rows depending on incidents created)
+```
+
+### Step 2: View Sample Data
+```bash
+kubectl exec -n bug-report-portal-dev postgres-0 -- \
+  psql -U postgres -d bugreportportal -c "SELECT id, title, status FROM \"BugReport\" LIMIT 1;"
+# Example output:
+#  id | title  | status 
+# ----+--------+--------
+#   1 | cdscsc | DONE
+```
+
+### Step 3: Force Pod Restart (Delete Pod)
+```bash
+# StatefulSet will automatically restart it
+kubectl delete pod postgres-0 -n bug-report-portal-dev
+```
+
+### Step 4: Wait for Restart to Complete
+```bash
+# Monitor pod status
+kubectl get pod postgres-0 -n bug-report-portal-dev --watch
+
+# Wait until STATUS=Running and READY=1/1 (usually 30-60 seconds)
+# Press Ctrl+C to stop watching
+```
+
+### Step 5: Check Data After Restart
+```bash
+kubectl exec -n bug-report-portal-dev postgres-0 -- \
+  psql -U postgres -d bugreportportal -c "SELECT COUNT(*) FROM \"BugReport\";"
+# Should show SAME count as before restart ✅
+```
+
+### Step 6: Verify Exact Same Data
+```bash
+kubectl exec -n bug-report-portal-dev postgres-0 -- \
+  psql -U postgres -d bugreportportal -c "SELECT id, title, status FROM \"BugReport\" LIMIT 1;"
+# Should show EXACT same data as Step 2 ✅
+```
+
+### Expected Results (Data Persists)
+```
+BEFORE POD RESTART:
+- BugReport rows: 1
+- Sample data: ID=1, Title="cdscsc", Status="DONE"
+
+POD RESTART:
+- Pod deleted
+- StatefulSet recreates postgres-0
+- Pod remounts: postgres-storage-postgres-0 (10Gi PVC)
+
+AFTER POD RESTART:
+- BugReport rows: 1 ✅ (SAME!)
+- Sample data: ID=1, Title="cdscsc", Status="DONE" ✅ (IDENTICAL!)
+- Pod age: < 1 minute (fresh start)
+```
+
+### Why This Works
+
+```
+┌─────────────────────────────────────────────────────┐
+│ DATA PERSISTENCE CHAIN                              │
+└─────────────────────────────────────────────────────┘
+
+Incident data created via app
+    ↓
+PostgreSQL writes to disk
+    ↓
+Storage location: /var/lib/postgresql/data
+    ↓
+Volume mount: postgres-storage-postgres-0 PVC
+    ↓
+PVC binding: 10Gi PersistentVolume
+    ↓
+Pod deleted
+    ↓
+PVC stays BOUND (data remains on disk)
+    ↓
+StatefulSet detects: "Should have postgres-0, don't have it"
+    ↓
+StatefulSet creates NEW postgres-0 pod
+    ↓
+New pod mounts SAME PVC (postgres-storage-postgres-0)
+    ↓
+PostgreSQL reads existing data from disk
+    ↓
+Data restored ✅
+```
+
+### Verify PVC is Bound (Persistent)
+```bash
+kubectl get pvc -n bug-report-portal-dev postgres-storage-postgres-0 -o jsonpath='{.status.phase}'
+# Output: Bound ✅ (data is safe even when pod is deleted)
+```
+
+### How StatefulSet Differs from Deployment
+
+| Scenario | Deployment | StatefulSet |
+|----------|-----------|------------|
+| **Pod crashes** | New random-named pod | postgres-0 recreated with same name |
+| **PVC binding** | Random PVC each time | SAME PVC (postgres-storage-postgres-0) |
+| **Data** | Lost if PVC deleted | Safe - PVC persists |
+| **Identity** | Changes every restart | Stable (postgres-0 always) |
+| **Databases** | ❌ Not suitable | ✅ Perfect for databases |
+
+**Conclusion:** Data is **100% persistent** and survives pod crashes! 🚀
+
 ## Best Practices
 
 ### For Major Architecture Changes
