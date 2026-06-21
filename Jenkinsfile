@@ -3,10 +3,9 @@
 // ========================================
 // Using Jenkins Shared Library for reusable pipeline functions
 // Repository: https://github.com/ravi2342/bugreportportal-sharedlib
-// Pinned to v1.0 so production master pipeline is unaffected by ongoing
-// shared-lib changes. Bump explicitly when promoting a new version.
+// Pinned to v1.1 - Updated to support app-repo sonar-project.properties
 
-@Library('bug-report-portal-lib@v1.0') _
+@Library('bug-report-portal-lib@v1.1') _
 
 // ========================================
 // PIPELINE CONFIGURATION
