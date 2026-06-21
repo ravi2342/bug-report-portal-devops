@@ -1,4 +1,14 @@
-# Kubernetes Deployment Troubleshooting
+# Bug Report Portal - Complete Troubleshooting Guide
+
+## TABLE OF CONTENTS
+1. [Kubernetes Issues](#kubernetes-issues)
+2. [Docker & Security Issues](#docker--security-issues)
+3. [CI/CD Pipeline Issues](#cicd-pipeline-issues)
+4. [Configuration Issues](#configuration-issues)
+
+---
+
+# KUBERNETES ISSUES
 
 ## Issue: Service Cannot Be Modified
 
@@ -49,430 +59,514 @@ kubectl delete service postgres -n bug-report-portal-dev
 - **PostgreSQL Deployment → StatefulSet**: Required cleanup of old Deployment + Service
 - **Service type changes**: Requires delete + recreate
 
-## Pod Communication Architecture
+### Architecture Reference
+For detailed information on pod communication, init containers, and StatefulSet architecture, see:
+- [POSTGRES_STATEFULSET_LOCAL_TEST.md](POSTGRES_STATEFULSET_LOCAL_TEST.md) - Architecture & testing procedures
+- [DEPLOY_TO_K8S.md](DEPLOY_TO_K8S.md) - Kubernetes deployment procedures
 
-### How App Pod Connects to PostgreSQL StatefulSet
+---
 
+# DOCKER & SECURITY ISSUES
+
+## Issue: Trivy Security Scan Failures (5 HIGH Vulnerabilities)
+
+### Symptom
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ KUBERNETES COMMUNICATION FLOW                               │
-└─────────────────────────────────────────────────────────────┘
-
-LAYER 1: DNS SERVICE DISCOVERY
-├─ Headless Service: postgres (ClusterIP: None)
-├─ DNS Name: postgres.bug-report-portal-dev.svc.cluster.local
-└─ Resolves to: postgres-0 pod IP (e.g., 10.244.0.14)
-
-LAYER 2: POD STARTUP SEQUENCE
-├─ Init Container 1: wait-for-postgres
-│  └─ Command: pg_isready -h postgres -p 5432
-│  └─ Purpose: Verify postgres-0 is accepting connections
-│  └─ Status: ✅ postgres:5432 - accepting connections
-│
-├─ Init Container 2: db-migrate
-│  └─ Command: npx prisma migrate deploy
-│  └─ Purpose: Create database schema (tables, indexes, constraints)
-│  └─ Connects to: postgresql://postgres:postgres@postgres:5432/bugreportportal
-│  └─ Status: ✅ Migrations applied (4 tables)
-│
-└─ App Container
-   └─ Reads: DATABASE_URL env var
-   └─ Connects to: postgresql://postgres:postgres@postgres:5432/bugreportportal
-   └─ Service: postgres resolves to postgres-0
-   └─ Status: ✅ App running on port 3000
-
-LAYER 3: DATA PERSISTENCE
-├─ StatefulSet: postgres (1 replica)
-├─ Pod Name: postgres-0 (stable, predictable)
-├─ Storage: postgres-storage-postgres-0 (10Gi PVC)
-├─ Volume Mount: /var/lib/postgresql/data
-└─ Status: ✅ Data survives pod restarts
+[Pipeline] Security Scan (Trivy)
+Trivy found 5 HIGH severity vulnerabilities:
+- CVE-2026-12143 (form-data 4.0.5)
+- CVE-2026-5079 (multer 2.1.1)
+- CVE-2026-12151 (undici 6.25.0)
+- CVE-2026-48779 (ws 8.20.1)
+- CVE-2026-48779 (undici in npm CLI)
+Pipeline: FAILURE
 ```
 
-### DNS Resolution Details
+### Root Causes
+1. **Outdated npm dependencies**: Direct dependency versions had known CVEs
+2. **npm CLI bundled vulnerabilities**: Node base image contains npm with bundled undici that has CVE
+3. **Dev dependencies in production image**: Development packages scanned despite `--omit=dev`
 
-**Short name resolution (within same namespace):**
+### Solution
+
+**Step 1: Update package.json (app repository)**
 ```bash
-App pod resolves "postgres" → postgres.bug-report-portal-dev.svc.cluster.local
-                            → 10.244.0.14 (postgres-0 pod IP)
+npm install form-data@4.0.6 multer@2.2.0 undici@6.27.0 ws@8.21.0 --save
+git add package.json package-lock.json
+git commit -m "security: fix 5 HIGH Trivy vulnerabilities"
+git push origin master
 ```
 
-**Verify DNS from inside pod:**
+**Step 2: Update Dockerfile (app repository) - BOTH stages**
+
+In the **dependencies stage:**
+```dockerfile
+FROM node:22-alpine3.24 AS dependencies
+RUN npm install -g npm@latest && apk update && apk upgrade
+# ... rest of build
+```
+
+In the **runner stage:**
+```dockerfile
+FROM node:22-alpine3.24 AS runner
+RUN npm install -g npm@latest && apk update && apk upgrade
+# ... rest of build
+```
+
+**Step 3: Use `--omit=dev` in production build**
+```dockerfile
+RUN npm ci --omit=dev  # Exclude dev-only dependencies from production image
+```
+
+**Step 4: Verify npm audit shows no HIGH vulns**
 ```bash
-kubectl exec -n bug-report-portal-dev <app-pod> -- nslookup postgres
-# Output: postgres.bug-report-portal-dev.svc.cluster.local → 10.244.0.14
+npm audit --omit=dev
+# Should show only MODERATE (dev-only) vulnerabilities
 ```
 
-### Why Headless Service for StatefulSet?
-
-| Feature | Regular Service | Headless Service |
-|---------|-----------------|-----------------|
-| ClusterIP | Assigned (10.x.x.x) | None |
-| Load Balancing | Yes (round-robin) | No |
-| Pod DNS | Single VIP | Individual pod IPs |
-| StatefulSet | ❌ Not suitable | ✅ Required |
-| Use Case | Stateless apps | StatefulSets, databases |
-
-**Why StatefulSet needs headless service:**
-- StatefulSet pods need **stable, predictable DNS names**: `postgres-0.postgres`
-- Regular service creates single VIP that load-balances across pods (bad for databases)
-- Headless service maps each pod to its own DNS entry (good for persistence)
-
-### StatefulSet vs Pod: Why Both Are Required
-
-**Common misconception:** "Can't I just run a pod without StatefulSet?"
-
-**Answer:** ❌ No - they serve different purposes:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ WHAT IS A STATEFULSET?                                      │
-└─────────────────────────────────────────────────────────────┘
-
-StatefulSet = CONTROLLER/BLUEPRINT
-├─ Manages pod lifecycle
-├─ Ensures desired state (always 1 replica running)
-├─ Handles pod restarts if crashed
-├─ Manages persistent storage (PVCs)
-├─ Provides stable pod naming (postgres-0, postgres-1, etc.)
-└─ Enables scaling (add more replicas easily)
-
-Pod = ACTUAL RUNNING CONTAINER
-├─ The executable database process
-├─ Lives at pod IP: 10.244.0.14
-├─ Runs PostgreSQL service
-├─ Mounts storage from PVC
-└─ Created and managed by StatefulSet
-```
-
-**Relationship:**
-```
-You apply: StatefulSet manifest
-           ↓
-Kubernetes creates: Pod (postgres-0)
-           ↓
-Pod runs: PostgreSQL process
-```
-
-**Comparison Table:**
-
-| Aspect | StatefulSet Only | Pod Only | Both (Correct) |
-|--------|------------------|----------|----------------|
-| **Pod crashes** | ✅ Auto-restarts | ❌ Stays dead | ✅ Auto-restarts |
-| **Node goes down** | ✅ Reschedules pod | ❌ Pod lost | ✅ Pod rescheduled |
-| **Scale to 2 replicas** | ✅ Creates postgres-1 | ❌ Manual work | ✅ Automatic |
-| **Persistent storage** | ✅ PVC per pod | ❌ No persistence | ✅ Data survives |
-| **Pod naming** | ✅ Stable: postgres-0 | ❌ Random names | ✅ Predictable DNS |
-| **Update strategy** | ✅ Controlled rollout | ❌ Manual | ✅ Automatic |
-| **Production ready** | ✅ Yes | ❌ No | ✅ Yes |
-
-**Real Example - What Happens When Pod Crashes:**
-
-```
-SCENARIO 1: Without StatefulSet (Just Pod)
-┌─ Pod postgres-0 crashes
-├─ Pod status: CrashLoopBackOff ❌
-├─ Database offline ❌
-└─ MANUAL fix required: kubectl delete pod, manual recreation
-
-SCENARIO 2: With StatefulSet (Correct)
-┌─ Pod postgres-0 crashes
-├─ StatefulSet detects: "Should have 1 pod, but have 0" ✅
-├─ StatefulSet immediately: Creates new postgres-0
-├─ New pod: Mounts same PVC (postgres-storage-postgres-0)
-├─ Data: Automatically restored from PVC ✅
-├─ Database: Back online in 30-60 seconds ✅
-└─ AUTOMATIC - no manual intervention needed
-```
-
-**Verify Both Are Running:**
+**Step 5: Commit and trigger new build**
 ```bash
-# Check StatefulSet (the controller)
-kubectl get statefulsets -n bug-report-portal-dev postgres
-# Output: NAME=postgres, READY=1/1, AGE=6h
-
-# Check Pod (the actual container)
-kubectl get pods -n bug-report-portal-dev postgres-0
-# Output: NAME=postgres-0, READY=1/1, STATUS=Running
-
-# StatefulSet owns the Pod
-kubectl get pod postgres-0 -n bug-report-portal-dev -o jsonpath='{.metadata.ownerReferences[0].name}'
-# Output: postgres (the StatefulSet name)
-```
-
-**Key Differences from Deployment:**
-
-| Feature | Deployment | StatefulSet |
-|---------|-----------|------------|
-| Pod naming | Random (app-5d49c557fd-d75lt) | Ordinal (postgres-0, postgres-1) |
-| Stable DNS | ❌ No | ✅ Yes |
-| PVC binding | ❌ Shared PVC | ✅ Per-pod PVCs |
-| Scaling | ⚡ Fast, any order | 📊 Sequential (0 → 1 → 2) |
-| Use case | Stateless apps | Databases, caches, stateful apps |
-
-**Why PostgreSQL Needs StatefulSet:**
-1. **Stable identity** - Pod name never changes (postgres-0)
-2. **Persistent storage** - Each pod gets own PVC
-3. **Single-writer** - Only one postgres-0 runs at a time
-4. **Data durability** - Crash recovery via PVC
-5. **High availability** - Can add replicas in future (postgres-0, postgres-1, etc.)
-
-
-
-### Common Communication Issues
-
-| Issue | Symptom | Root Cause | Fix |
-|-------|---------|-----------|-----|
-| Pod not starting | ImagePullBackOff | Docker image not available | Check image repo, credentials |
-| Init container timeout | Pod pending > 5min | postgres-0 not ready in time | Increase timeout or check postgres logs |
-| Connection refused | App logs: "postgres refused" | postgres-0 service/pod down | Check postgres pod status, PVC binding |
-| DNS not resolving | nslookup postgres fails | CoreDNS issue or wrong namespace | Check CoreDNS pod, verify namespace label |
-| Database locked | Prisma migration fails | Another migration running or corrupted schema | Scale down app, run `prisma migrate resolve` |
-
-## Complete Pod Communication Verification Checklist
-
-Run through all 11 steps to verify end-to-end communication:
-
-### Step 1: Verify Service Endpoints
-```bash
-kubectl get endpoints -n bug-report-portal-dev postgres
-# Output: postgres   10.244.0.14:5432
-```
-✅ Service has endpoint pointing to postgres pod
-
-### Step 2: Verify Pod Labels Match Service Selector
-```bash
-# Check service selector
-kubectl get svc postgres -n bug-report-portal-dev -o jsonpath='{.spec.selector}'
-# Output: {"app":"postgres"}
-
-# Check pod labels
-kubectl get pod postgres-0 -n bug-report-portal-dev -o jsonpath='{.metadata.labels}'
-# Output: Should contain "app":"postgres"
-```
-✅ Service selector matches pod labels
-
-### Step 3: Verify Database Tables Created
-```bash
-kubectl exec -n bug-report-portal-dev postgres-0 -- \
-  psql -U postgres -d bugreportportal -c \
-  "SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;"
-# Expected tables: ActivityLog, BugReport, Comment, _prisma_migrations
-```
-✅ All 4 tables created by Prisma migrations
-
-### Step 4: Check Pod Health Status
-```bash
-kubectl get pods -n bug-report-portal-dev -o wide
-# Both pods should show: STATUS=Running, READY=1/1
-```
-✅ postgres-0 and bug-report-portal-app both Running
-
-### Step 5: Verify Liveness Probe Configuration
-```bash
-kubectl get pod postgres-0 -n bug-report-portal-dev -o jsonpath='{.spec.containers[0].livenessProbe}' | jq
-# Output shows: command=["/bin/sh", "-c", "pg_isready -U postgres"]
-# failureThreshold=3, periodSeconds=10, initialDelaySeconds=30
-```
-✅ Probes configured and running every 10 seconds
-
-### Step 6: Test DNS Resolution
-```bash
-kubectl exec -n bug-report-portal-dev <app-pod> -- nslookup postgres
-# Output: postgres.bug-report-portal-dev.svc.cluster.local → 10.244.0.14
-```
-✅ DNS resolves postgres to postgres-0 pod IP
-
-### Step 7: Verify PVC Binding
-```bash
-kubectl get pvc -n bug-report-portal-dev
-# postgres-storage-postgres-0 should show: STATUS=Bound, CAPACITY=10Gi
-```
-✅ 10Gi persistent storage bound and ready
-
-### Step 8: Check Init Container Logs
-```bash
-# Check wait-for-postgres init container
-kubectl logs -n bug-report-portal-dev <app-pod> -c wait-for-postgres
-# Expected: "postgres:5432 - accepting connections"
-
-# Check db-migrate init container
-kubectl logs -n bug-report-portal-dev <app-pod> -c db-migrate
-# Expected: "Migrations applied"
-```
-✅ Both init containers executed successfully
-
-### Step 9: Verify App Connection String
-```bash
-kubectl exec -n bug-report-portal-dev <app-pod> -- env | grep DATABASE_URL
-# Output: DATABASE_URL=postgresql://postgres:postgres@postgres:5432/bugreportportal
-```
-✅ App has correct connection string configured
-
-### Step 10: Check Event Logs for Errors
-```bash
-kubectl get events -n bug-report-portal-dev --sort-by='.lastTimestamp'
-# Should show mostly "Normal" events, no "Warning" for postgres/app pods
-```
-✅ No connection errors in event logs
-
-### Step 11: Test Connection Latency
-```bash
-for i in {1..3}; do \
-  kubectl exec -n bug-report-portal-dev postgres-0 -- psql -U postgres -c "SELECT NOW();" 2>/dev/null; \
-done
-# All queries should return timestamp in < 150ms
-```
-✅ Connection latency low (< 150ms in-cluster)
-
-### Quick Status Summary
-```bash
-# One-liner to check everything
-echo "StatefulSet:" && kubectl get statefulsets -n bug-report-portal-dev && \
-echo "" && echo "Pods:" && kubectl get pods -n bug-report-portal-dev && \
-echo "" && echo "Services:" && kubectl get svc -n bug-report-portal-dev && \
-echo "" && echo "PVCs:" && kubectl get pvc -n bug-report-portal-dev
-```
-
-**All 11 checks passing = Healthy Pod Communication** ✅
-
-## Data Persistence Verification
-
-Verify that incident data survives pod restarts (the core benefit of StatefulSet + PVC):
-
-### Step 1: Check Current Data Before Restart
-```bash
-kubectl exec -n bug-report-portal-dev postgres-0 -- \
-  psql -U postgres -d bugreportportal -c "SELECT COUNT(*) FROM \"BugReport\";"
-# Output: 1 (or more rows depending on incidents created)
-```
-
-### Step 2: View Sample Data
-```bash
-kubectl exec -n bug-report-portal-dev postgres-0 -- \
-  psql -U postgres -d bugreportportal -c "SELECT id, title, status FROM \"BugReport\" LIMIT 1;"
-# Example output:
-#  id | title  | status 
-# ----+--------+--------
-#   1 | cdscsc | DONE
-```
-
-### Step 3: Force Pod Restart (Delete Pod)
-```bash
-# StatefulSet will automatically restart it
-kubectl delete pod postgres-0 -n bug-report-portal-dev
-```
-
-### Step 4: Wait for Restart to Complete
-```bash
-# Monitor pod status
-kubectl get pod postgres-0 -n bug-report-portal-dev --watch
-
-# Wait until STATUS=Running and READY=1/1 (usually 30-60 seconds)
-# Press Ctrl+C to stop watching
-```
-
-### Step 5: Check Data After Restart
-```bash
-kubectl exec -n bug-report-portal-dev postgres-0 -- \
-  psql -U postgres -d bugreportportal -c "SELECT COUNT(*) FROM \"BugReport\";"
-# Should show SAME count as before restart ✅
-```
-
-### Step 6: Verify Exact Same Data
-```bash
-kubectl exec -n bug-report-portal-dev postgres-0 -- \
-  psql -U postgres -d bugreportportal -c "SELECT id, title, status FROM \"BugReport\" LIMIT 1;"
-# Should show EXACT same data as Step 2 ✅
-```
-
-### Expected Results (Data Persists)
-```
-BEFORE POD RESTART:
-- BugReport rows: 1
-- Sample data: ID=1, Title="cdscsc", Status="DONE"
-
-POD RESTART:
-- Pod deleted
-- StatefulSet recreates postgres-0
-- Pod remounts: postgres-storage-postgres-0 (10Gi PVC)
-
-AFTER POD RESTART:
-- BugReport rows: 1 ✅ (SAME!)
-- Sample data: ID=1, Title="cdscsc", Status="DONE" ✅ (IDENTICAL!)
-- Pod age: < 1 minute (fresh start)
+git add Dockerfile
+git commit -m "security: patch npm CLI and OS packages in Dockerfile"
+git push origin master
 ```
 
 ### Why This Works
+- **Step 1**: Fixes direct dependencies
+- **Step 2**: Patches npm CLI's bundled packages (fixes undici CVE in npm)
+- **Step 3**: Excludes dev-only packages from production image
+- **Step 4**: Verification that only safe versions remain
 
+### Prevention
+- **Weekly audits**: Run `npm audit --omit=dev` on production code
+- **Automated scanning**: CI/CD pipeline includes Trivy scan before each push
+- **Base image updates**: Monitor Alpine Linux and Node.js security bulletins
+- **Immediate action**: Upgrade vulnerabilities within 24-48 hours
+
+### Related Issues
+- Build #75-76: Failed Trivy scan (5 HIGH vulnerabilities)
+- Build #77: Passed Trivy scan (0 HIGH/CRITICAL vulnerabilities)
+- Build #92: Confirmed passing Trivy scan in production
+
+---
+
+# CI/CD PIPELINE ISSUES
+
+## Issue: Kubernetes Rollout Timeout
+
+### Symptom
 ```
-┌─────────────────────────────────────────────────────┐
-│ DATA PERSISTENCE CHAIN                              │
-└─────────────────────────────────────────────────────┘
-
-Incident data created via app
-    ↓
-PostgreSQL writes to disk
-    ↓
-Storage location: /var/lib/postgresql/data
-    ↓
-Volume mount: postgres-storage-postgres-0 PVC
-    ↓
-PVC binding: 10Gi PersistentVolume
-    ↓
-Pod deleted
-    ↓
-PVC stays BOUND (data remains on disk)
-    ↓
-StatefulSet detects: "Should have postgres-0, don't have it"
-    ↓
-StatefulSet creates NEW postgres-0 pod
-    ↓
-New pod mounts SAME PVC (postgres-storage-postgres-0)
-    ↓
-PostgreSQL reads existing data from disk
-    ↓
-Data restored ✅
+[Pipeline] Deploy to Kubernetes
++ kubectl rollout status deployment/bug-report-portal-app -n bug-report-portal-dev --timeout=120s
+Waiting for deployment to finish: 1 replicas updated, 1 of 1 ready
+deadline exceeded
+ERROR: Deployment rolled out, but exceeded 120s timeout
+Pipeline: FAILURE (stage: Deploy)
 ```
 
-### Verify PVC is Bound (Persistent)
+### Root Cause
+Pod startup sequence exceeds timeout threshold:
+- **Image pull**: ~30 seconds (pulling Node.js image from Docker Hub)
+- **npm install**: ~15 seconds (dependencies already in image via npm ci)
+- **PostgreSQL init**: ~10 seconds (pg_isready polling via init container)
+- **Prisma migrations**: ~30-60 seconds (database schema creation/updates)
+- **App startup**: ~10 seconds (Express server initialization)
+- **Total**: ~85-125 seconds (exceeds 120s default timeout)
+
+### Solution
+
+**Update k8sDeploy.groovy in shared library (v1.1)**
+
+```groovy
+// Before (too short)
+kubectl rollout status deployment/${deploymentName} \
+  -n ${namespace} \
+  --timeout=120s
+
+// After (sufficient for database init)
+kubectl rollout status deployment/${deploymentName} \
+  -n ${namespace} \
+  --timeout=300s   # 5 minutes instead of 2 minutes
+```
+
+**Implementation:**
 ```bash
-kubectl get pvc -n bug-report-portal-dev postgres-storage-postgres-0 -o jsonpath='{.status.phase}'
-# Output: Bound ✅ (data is safe even when pod is deleted)
+# In shared library repo
+git -C /path/to/bugreportportal-sharedlib edit vars/k8sDeploy.groovy
+# Change: --timeout=120s → --timeout=300s
+
+git tag -a v1.1 -m "feat: increase rollout timeout to 300s for database init"
+git push origin v1.1
+
+# Update Jenkinsfile to use v1.1
+@Library('bug-report-portal-lib@v1.1') _
 ```
 
-### How StatefulSet Differs from Deployment
+### Why 300s?
+```
+Worst-case startup timeline:
+├─ Image pull: 30s (if not cached)
+├─ OS upgrade: 5s
+├─ Prisma generation: 30s
+├─ Init container: wait-for-postgres polling: 10s
+├─ Prisma migrate deploy: 60s (large migrations)
+├─ App startup: 10s
+├─ K8s scheduling: 10s
+├─ Rolling update: 5s
+└─ Safety margin: 30s
+   = ~190s typical, ~240s with variance
+   Use 300s (5 min) for production reliability
+```
 
-| Scenario | Deployment | StatefulSet |
-|----------|-----------|------------|
-| **Pod crashes** | New random-named pod | postgres-0 recreated with same name |
-| **PVC binding** | Random PVC each time | SAME PVC (postgres-storage-postgres-0) |
-| **Data** | Lost if PVC deleted | Safe - PVC persists |
-| **Identity** | Changes every restart | Stable (postgres-0 always) |
-| **Databases** | ❌ Not suitable | ✅ Perfect for databases |
+### Optimization Tips
+- **Docker layer caching**: Use buildkit to cache npm install layers
+- **Parallel init containers**: Non-dependent init containers can run simultaneously
+- **Pre-run migrations**: Consider running Prisma migrations in CI stage (before deployment)
+- **Monitor trend**: Track actual startup time across builds to detect regressions
 
-**Conclusion:** Data is **100% persistent** and survives pod crashes! 🚀
+### Prevention
+- **Measure baseline**: Time first deployment startup end-to-end
+- **Add buffer**: Use formula: `baseline + 60s overhead + 30s safety`
+- **Alert on regression**: Set up monitoring for deployment latency
+- **Test locally**: Use Kind cluster to measure startup times before production
 
-## Best Practices
+### Related Issues
+- Build #78: Timeout exceeded at 126 seconds
+- Build #79-80: Passed with extended timeout
+- Build #92: Confirmed passing with 300s timeout
 
-### For Major Architecture Changes
+---
+
+## Issue: SonarQube Configuration Not Found
+
+### Symptom
+```
+[Pipeline] SonarQube Scan
++ cd devops
++ cat sonar-project.properties
+cat: sonar-project.properties: No such file or directory
+ERROR: Unable to read sonar-project.properties
+Pipeline: FAILURE (stage: Quality Gates)
+```
+
+### Root Cause
+- **Config location moved**: `sonar-project.properties` belongs in app repo (where source code is)
+- **Shared library mismatch**: v1.0 looked for config in `devops/` directory
+- **Incorrect assumption**: DevOps repo shouldn't contain app-specific configurations
+
+### Solution
+
+**Step 1: Move config to app repository**
 ```bash
-# Option 1: Clean namespace and redeploy (loses data)
-kubectl delete namespace bug-report-portal-dev
-kubectl apply -k .
+# From devops repo
+rm /Users/demu/bug-report-portal-devops/sonar-project.properties
+git add -A
+git commit -m "chore: remove sonar-project.properties (moved to app repo)"
 
-# Option 2: Selective cleanup (preserves PVCs and data)
-kubectl delete deployment,service --all -n bug-report-portal-dev
-sleep 3
-kubectl apply -k .
+# In app repo
+cat > /Users/demu/bugreportportal/sonar-project.properties << 'EOF'
+sonar.projectKey=bug-report-portal
+sonar.projectName=Bug Report Portal
+sonar.sources=.
+sonar.tests=tests
+sonar.test.inclusions=tests/**/*.test.js
+sonar.javascript.lcov.reportPaths=coverage/lcov.info
+sonar.coverage.exclusions=tests/**,printReports.js,prisma/**,views/**,public/**,seed-demo.js
+EOF
+
+git add sonar-project.properties
+git commit -m "chore: add SonarQube configuration to app repo"
+git push origin master
 ```
 
-### For Testing New Features
-Always use feature branches with `DEVOPS_BRANCH` parameter:
-```
-Jenkins Build with Parameters:
-- DEVOPS_BRANCH: feature/postgres-statefulset
-- DO_DEPLOY: true
+**Step 2: Update shared library v1.1**
+
+In `vars/sonarScan.groovy`:
+```groovy
+// Before (v1.0)
+cd(config.workDir || 'devops')
+sh 'cat sonar-project.properties'
+
+// After (v1.1)
+String workDir = config.workDir ?: 'app'
+sh(script: "cd ${workDir} && cat sonar-project.properties", returnStdout: true)
 ```
 
-This tests K8s changes before merging to master and avoids production issues.
+**Step 3: Create library tag**
+```bash
+cd /Users/demu/bugreportportal-sharedlib
+git tag -a v1.1 -m "feat: update sonarScan to work with app-repo sonar-project.properties"
+git push origin v1.1
+```
+
+**Step 4: Update Jenkinsfile**
+```groovy
+// Before
+@Library('bug-report-portal-lib@v1.0') _
+
+// After
+@Library('bug-report-portal-lib@v1.1') _
+```
+
+### Separation of Concerns
+```
+CORRECT STRUCTURE:
+
+App Repository (bugreportportal/)
+├── src/
+├── tests/
+├── Dockerfile
+├── package.json
+├── sonar-project.properties      ← App config (moved here)
+└── .eslintrc                      ← App config
+
+DevOps Repository (bug-report-portal-devops/)
+├── k8s/
+├── Jenkinsfile
+├── README.md
+└── deployment configs only        ← NO app configs
+```
+
+### Related Issues
+- Build #91: Failed with "No such file or directory"
+- Build #92: Passed after moving config and updating to v1.1
+
+---
+
+## Issue: Jenkins Approval Gate Timeout Not Enforced
+
+### Symptom
+```
+[Pipeline] Deployment Approval
+Waiting for approval...
+(stays waiting indefinitely, no auto-abort after 30 minutes)
+```
+
+### Root Cause
+- **Missing timeout wrapper**: `input()` step doesn't have timeout by default
+- **Manual approval required**: Without timeout, Jenkins waits forever for human decision
+- **No failure safety**: Stuck build consumes executor indefinitely
+
+### Solution
+
+**Jenkinsfile Stage (Deployment Approval)**
+```groovy
+stage('Deployment Approval') {
+  steps {
+    script {
+      def env_name = params.TARGET_ENV.toUpperCase()
+      currentBuild.displayName = "#${BUILD_NUMBER} - Approving ${env_name}"
+      
+      try {
+        // 30-minute timeout: Pipeline auto-aborts if not approved in time
+        timeout(time: 30, unit: 'MINUTES') {
+          input(
+            message: "Approve deployment to ${env_name} environment?",
+            ok: "✓ Proceed with ${env_name}",
+            submitter: null  // Allow any Jenkins user to approve
+          )
+        }
+        
+        echo "✓ Deployment approved - proceeding with rollout..."
+        currentBuild.displayName = "#${BUILD_NUMBER} - ${env_name} ✓ Approved"
+        
+      } catch (err) {
+        // Timeout or user rejection
+        currentBuild.result = 'ABORTED'
+        currentBuild.displayName = "#${BUILD_NUMBER} - ${env_name} ✗ Rejected"
+        error("❌ Deployment rejected or approval timed out (30 min deadline)")
+      }
+    }
+  }
+}
+```
+
+### Key Features
+- **30-minute timeout**: Adequate response time for on-call engineers
+- **Auto-abort**: Pipeline automatically stops if no approval within deadline
+- **Clear messaging**: Console shows exact reason for abort
+- **Status tracking**: Build display shows approval result for audit trail
+- **Safe default**: Prevents runaway deployments from forgotten approvals
+
+### Why This Matters (Production Safety)
+```
+WITHOUT timeout:
+├─ Build waits forever
+├─ Executor held indefinitely
+├─ Jenkins resources consumed
+├─ Pipeline appears "stuck" to team
+└─ Risk: Approval forgotten, stale code deployed hours/days later
+
+WITH 30-min timeout:
+├─ On-call engineer notified immediately
+├─ Has 30 minutes to respond (reasonable timeframe)
+├─ If not approved, build automatically stops
+├─ Executor released for other work
+├─ Clear audit trail: Who approved? When?
+└─ Safe: Never deploys forgotten approvals
+```
+
+### Prevention
+- **Document timeout**: Make 30 minutes a team standard
+- **Alert integration**: Send Slack/email when approval gate triggered
+- **Submitter tracking**: Consider requiring specific approvers (e.g., on-call engineer)
+- **Audit logging**: Keep build history for compliance/incident review
+
+### Related Issues
+- Build #92: Approval gate tested and working with timeout
+
+---
+
+## Issue: Jenkins GString Interpolation in Stage Names
+
+### Symptom
+```
+org.codehaus.groovy.control.MultipleCompilationErrorsException: 
+  startup failed:
+WorkflowScript: 209: Expected string literal @ line 209, column 11.
+  stage("Deployment Approval (${params.TARGET_ENV.toUpperCase()})") {
+        ^
+1 error
+```
+
+### Root Cause
+- **Jenkins Declarative Pipeline limitation**: Stage names must be static strings
+- **Groovy vs. Jenkins DSL**: Groovy supports GString (`${}` interpolation), but Jenkins pipeline parser doesn't
+- **Compile-time vs. runtime**: Stage names evaluated at parse time, parameters available only at runtime
+
+### Solution (Use `currentBuild.displayName` instead)
+
+**What DOESN'T work (causes error):**
+```groovy
+// ❌ ERROR: GString in stage name not allowed
+stage("Deployment Approval (${params.TARGET_ENV})") {  // Causes parse error!
+  steps { ... }
+}
+```
+
+**What WORKS (correct approach):**
+```groovy
+// ✅ CORRECT: Static stage name
+stage('Deployment Approval') {  // Keep stage name static
+  steps {
+    script {
+      def env_name = params.TARGET_ENV.toUpperCase()
+      
+      // Set dynamic display name (shown in Jenkins UI)
+      currentBuild.displayName = "#${BUILD_NUMBER} - Approving ${env_name}"
+      
+      try {
+        timeout(time: 30, unit: 'MINUTES') {
+          input(
+            message: "Approve deployment to ${env_name} environment?",
+            ok: "✓ Proceed with ${env_name}"
+          )
+        }
+        
+        // Update display after approval
+        currentBuild.displayName = "#${BUILD_NUMBER} - ${env_name} ✓ Approved"
+        
+      } catch (err) {
+        currentBuild.displayName = "#${BUILD_NUMBER} - ${env_name} ✗ Rejected"
+        error('Deployment rejected or timed out')
+      }
+    }
+  }
+}
+```
+
+### How It Works
+```
+Jenkins UI Display:
+
+Build List View:
+  #92 - DEV ✓ Approved          ← currentBuild.displayName (dynamic)
+  #91 - STAGING ✗ Rejected      ← Updated at runtime
+  #90 - DEV ✓ Approved
+  
+Stage View:
+  Stage: Deployment Approval    ← stage name (static, required)
+  Status: ABORTED (after 30 min timeout)
+```
+
+### Declarative Pipeline Limitations
+```
+STATIC (Allowed):
+├─ stage('Deploy App')  ← No interpolation
+├─ parameters { ... }
+├─ environment { PATH = '/usr/bin:$PATH' }  ← Simple vars only
+└─ triggers { ... }
+
+DYNAMIC (Not allowed in declarative):
+├─ stage("Deploy ${target}")  ← ❌ GString not allowed
+├─ environment { IMG = "${params.REPO}/${params.TAG}" }  ← ❌ Complex expressions
+└─ triggers { ... }
+
+DYNAMIC (Must use script block):
+├─ script {
+│   def stageName = "Deploy ${target}"  ← ✅ Works in script
+│   currentBuild.displayName = stageName  ← ✅ Updates UI display
+│   ...
+└─ }
+```
+
+### Where GString IS Allowed
+```groovy
+pipeline {
+  agent any
+  parameters {
+    string(name: 'TARGET_ENV', defaultValue: 'DEV')
+  }
+  
+  stages {
+    stage('Static Stage Name') {  // ✅ No interpolation
+      steps {
+        script {
+          // ✅ GString OK here (inside script block)
+          def env_name = "${params.TARGET_ENV.toUpperCase()}"
+          echo "Deploying to: ${env_name}"
+          
+          // ✅ GString OK here
+          currentBuild.displayName = "#${BUILD_NUMBER} - ${env_name}"
+          
+          // ✅ GString OK here
+          sh "echo Deploy to ${env_name}"
+        }
+      }
+    }
+  }
+}
+```
+
+### Prevention
+- **Learn Jenkins DSL limits**: Stage names and properties must be static
+- **Use `script` blocks**: Move interpolation into `script {}` sections
+- **currentBuild object**: Use for dynamic display, description, results
+- **Test in Jenkins**: Always validate Groovy syntax in actual Jenkins (IDE may be permissive)
+
+### Related Issues
+- Initial implementation attempt failed with GString in stage name
+- Corrected by moving dynamic content to `currentBuild.displayName`
+
+---
+
+# SUMMARY OF SESSION ISSUES & FIXES
+
+| Build | Issue | Cause | Solution | Status |
+|-------|-------|-------|----------|--------|
+| #75-76 | Trivy vulnerabilities (5 HIGH) | Outdated npm packages + npm CLI | Updated deps, patched npm, npm ci --omit=dev | ✅ Fixed |
+| #78 | Rollout timeout (120s < 126s) | Pod startup includes Prisma migrations | Increased timeout to 300s | ✅ Fixed |
+| #80 | SonarQube config not found | Config in devops repo, v1.0 looked there | Moved to app repo, updated v1.1 | ✅ Fixed |
+| #82 | Service immutable conflict | Tried to change clusterIP to None | Manual delete, rebuilt for StatefulSet | ✅ Fixed |
+| #85-90 | Data loss risk | Deployment (ephemeral), no PVC | Migrated to StatefulSet with volumeClaimTemplates | ✅ Fixed |
+| #92 | All checks passed | Integration successful | Full E2E pipeline validated | ✅ Verified |
+
+---
+
+# ADDITIONAL RESOURCES
+
+- [ERROR_FIXES.md](ERROR_FIXES.md) - Jenkins container, shell syntax, environment variable errors
+- [BUILD_FAILURES.md](BUILD_FAILURES.md) - Docker build, K8s deployment, Jenkins container issues
+- [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Common commands and troubleshooting quick fixes
+- [POSTGRES_STATEFULSET_LOCAL_TEST.md](POSTGRES_STATEFULSET_LOCAL_TEST.md) - Local testing procedures
+- [JENKINS_PIPELINE_GUIDE.md](JENKINS_PIPELINE_GUIDE.md) - Complete pipeline architecture and each stage
