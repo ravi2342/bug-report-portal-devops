@@ -218,21 +218,7 @@ pipeline {
           try {
             timeout(time: 30, unit: 'MINUTES') {
               def env_name = params.TARGET_ENV.toUpperCase()
-              input message: """
-                ╔════════════════════════════════════════════════════════════╗
-                ║           ⚠️  DEPLOYMENT APPROVAL REQUIRED  ⚠️            ║
-                ╠════════════════════════════════════════════════════════════╣
-                ║                                                            ║
-                ║ Build:       #${BUILD_NUMBER}                              ║
-                ║ Image:       ${env.IMAGE_TAG}                             ║
-                ║ 🎯 Target:    ${env_name} ENVIRONMENT                                     ║
-                ║ Cluster:     Kubernetes (kind-bug-report-portal)          ║
-                ║                                                            ║
-                ║ 🔍 Please review deployment details before proceeding.    ║
-                ║ ⏱️  Pipeline will ABORT if not approved within 30 minutes. ║
-                ║                                                            ║
-                ╚════════════════════════════════════════════════════════════╝
-              """.stripIndent(),
+              input message: "Approve deployment to ${env_name} environment?",
                 ok: "✓ Proceed with ${env_name}",
                 submitter: null
             }
