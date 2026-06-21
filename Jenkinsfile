@@ -206,12 +206,15 @@ pipeline {
     // ========================================
     // STAGE 11: DEPLOYMENT APPROVAL (OPTIONAL)
     // ========================================
-    stage("Deployment Approval (${params.TARGET_ENV.toUpperCase()})") {
+    stage('Deployment Approval') {
       when {
         expression { params.DO_DEPLOY }
       }
       steps {
         script {
+          // Update build display to show which environment is being approved
+          currentBuild.displayName = "#${BUILD_NUMBER} - Approving ${params.TARGET_ENV.toUpperCase()}"
+          
           try {
             timeout(time: 30, unit: 'MINUTES') {
               input message: """
@@ -233,8 +236,10 @@ pipeline {
                 submitter: null
             }
             echo "✓ Deployment approved - proceeding..."
+            currentBuild.displayName = "#${BUILD_NUMBER} - ${params.TARGET_ENV.toUpperCase()} ✓ Approved"
           } catch (err) {
             currentBuild.result = 'ABORTED'
+            currentBuild.displayName = "#${BUILD_NUMBER} - ${params.TARGET_ENV.toUpperCase()} ✗ Rejected"
             error('❌ Deployment rejected or approval timed out (30 min expired)')
           }
         }
