@@ -217,6 +217,7 @@ pipeline {
           
           try {
             timeout(time: 30, unit: 'MINUTES') {
+              def env_name = params.TARGET_ENV.toUpperCase()
               input message: """
                 ╔════════════════════════════════════════════════════════════╗
                 ║           ⚠️  DEPLOYMENT APPROVAL REQUIRED  ⚠️            ║
@@ -224,7 +225,7 @@ pipeline {
                 ║                                                            ║
                 ║ Build:       #${BUILD_NUMBER}                              ║
                 ║ Image:       ${env.IMAGE_TAG}                             ║
-                ║ 🎯 Target:    ${params.TARGET_ENV.toUpperCase()} ENVIRONMENT                             ║
+                ║ 🎯 Target:    ${env_name} ENVIRONMENT                                     ║
                 ║ Cluster:     Kubernetes (kind-bug-report-portal)          ║
                 ║                                                            ║
                 ║ 🔍 Please review deployment details before proceeding.    ║
@@ -232,7 +233,7 @@ pipeline {
                 ║                                                            ║
                 ╚════════════════════════════════════════════════════════════╝
               """.stripIndent(),
-                ok: '✓ Proceed with Deployment',
+                ok: "✓ Proceed with ${env_name}",
                 submitter: null
             }
             echo "✓ Deployment approved - proceeding..."
