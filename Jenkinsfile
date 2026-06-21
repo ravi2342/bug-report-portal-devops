@@ -204,7 +204,45 @@ pipeline {
     }
     
     // ========================================
-    // STAGE 11: DEPLOY TO KUBERNETES (OPTIONAL)
+    // STAGE 11: DEPLOYMENT APPROVAL (OPTIONAL)
+    // ========================================
+    stage("Deployment Approval (${params.TARGET_ENV.toUpperCase()})") {
+      when {
+        expression { params.DO_DEPLOY }
+      }
+      steps {
+        script {
+          try {
+            timeout(time: 30, unit: 'MINUTES') {
+              input message: """
+                ╔════════════════════════════════════════════════════════════╗
+                ║           ⚠️  DEPLOYMENT APPROVAL REQUIRED  ⚠️            ║
+                ╠════════════════════════════════════════════════════════════╣
+                ║                                                            ║
+                ║ Build:       #${BUILD_NUMBER}                              ║
+                ║ Image:       ${env.IMAGE_TAG}                             ║
+                ║ 🎯 Target:    ${params.TARGET_ENV.toUpperCase()} ENVIRONMENT                             ║
+                ║ Cluster:     Kubernetes (kind-bug-report-portal)          ║
+                ║                                                            ║
+                ║ 🔍 Please review deployment details before proceeding.    ║
+                ║ ⏱️  Pipeline will ABORT if not approved within 30 minutes. ║
+                ║                                                            ║
+                ╚════════════════════════════════════════════════════════════╝
+              """.stripIndent(),
+                ok: '✓ Proceed with Deployment',
+                submitter: null
+            }
+            echo "✓ Deployment approved - proceeding..."
+          } catch (err) {
+            currentBuild.result = 'ABORTED'
+            error('❌ Deployment rejected or approval timed out (30 min expired)')
+          }
+        }
+      }
+    }
+    
+    // ========================================
+    // STAGE 12: DEPLOY TO KUBERNETES (OPTIONAL)
     // ========================================
     stage('Deploy to Kubernetes') {
       when {
@@ -232,7 +270,7 @@ pipeline {
     }
     
     // ========================================
-    // STAGE 12: NOTIFY STATUS
+    // STAGE 13: NOTIFY STATUS
     // ========================================
     stage('Notify') {
       steps {
