@@ -61,7 +61,8 @@ services:
     user: root
     environment:
       JENKINS_OPTS: "--prefix=/jenkins"
-      JAVA_OPTS: "-Xmx2g -Xms1g"  # Increased from 1GB to 2GB max heap
+      # Aggressive memory tuning for pipeline performance
+      JAVA_OPTS: "-Xmx3g -Xms2g -XX:+UseG1GC -XX:MaxGCPauseMillis=30"
       KUBECONFIG: /root/.kube/config
     ports:
       - "8080:8080"
@@ -75,8 +76,8 @@ services:
     networks:
       - ci-cd
     restart: always
-    mem_limit: 3g              # Hard limit: 3GB total memory
-    mem_reservation: 2g        # Soft limit: ask for 2GB
+    mem_limit: 4g              # Increased hard limit from 3g to 4g
+    mem_reservation: 3g        # Increased soft limit from 2g to 3g
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/jenkins/login"]
       interval: 30s
