@@ -3,9 +3,9 @@
 // ========================================
 // Using Jenkins Shared Library for reusable pipeline functions
 // Repository: https://github.com/ravi2342/bugreportportal-sharedlib
-// Pinned to v1.1 - Updated to support app-repo sonar-project.properties
+// Pinned to v1.2 - Added approveDeployment function with proper approver capture
 
-@Library('bug-report-portal-lib@v1.1') _
+@Library('bug-report-portal-lib@v1.2') _
 
 // ========================================
 // PIPELINE CONFIGURATION
