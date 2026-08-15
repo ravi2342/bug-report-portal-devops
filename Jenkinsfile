@@ -3,9 +3,9 @@
 // ========================================
 // Using Jenkins Shared Library for reusable pipeline functions
 // Repository: https://github.com/ravi2342/bugreportportal-sharedlib
-// Pinned to v1.2.1 - Fixed approveDeployment input step execution
+// Using master branch for latest features and fixes
 
-@Library('bug-report-portal-lib@v1.2.1') _
+@Library('bug-report-portal-lib@master') _
 
 // ========================================
 // PIPELINE CONFIGURATION
