@@ -30,8 +30,8 @@ services:
       SONAR_JDBC_PASSWORD: postgres
       SONAR_WEB_CONTEXT: /
       SONAR_WEB_PORT: 9000
-      # Elasticsearch tuning for limited Docker Desktop memory
-      ES_JAVA_OPTS: "-Xms512m -Xmx512m"
+      # Elasticsearch tuning for faster Quality Gate processing
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"  # Increased from 512m to 1GB for better performance
     ports:
       - "9000:9000"
     volumes:
@@ -43,6 +43,8 @@ services:
         condition: service_healthy
     networks:
       - ci-cd
+    mem_limit: 4g              # Hard limit: 4GB total SonarQube container
+    mem_reservation: 2.5g      # Soft limit: ask for 2.5GB
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/"]
       interval: 30s
