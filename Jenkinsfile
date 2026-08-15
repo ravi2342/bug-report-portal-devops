@@ -213,21 +213,24 @@ pipeline {
       }
       steps {
         script {
-          // Update build display to show which environment is being approved
           currentBuild.displayName = "#${BUILD_NUMBER} - Approving ${params.TARGET_ENV.toUpperCase()}"
           
-          try {
-            approveDeployment(
-              environment: params.TARGET_ENV.toUpperCase(),
-              timeoutMins: 30,
-              buildNumber: env.BUILD_NUMBER
-            )
-            currentBuild.displayName = "#${BUILD_NUMBER} - ${params.TARGET_ENV.toUpperCase()} ✓ Approved"
-          } catch (err) {
-            currentBuild.result = 'ABORTED'
-            currentBuild.displayName = "#${BUILD_NUMBER} - ${params.TARGET_ENV.toUpperCase()} ✗ Rejected"
-            error('❌ Deployment rejected or approval timed out')
+          timeout(time: 30, unit: 'MINUTES') {
+            input message: "Approve deployment to ${params.TARGET_ENV.toUpperCase()} environment?",
+              ok: "✓ Proceed with ${params.TARGET_ENV.toUpperCase()}",
+              submitter: null
           }
+          
+          echo ""
+          echo "═══════════════════════════════════════════════════════════"
+          echo "✓ APPROVAL CONFIRMED"
+          echo "✓ BUILD NUMBER: #${BUILD_NUMBER}"
+          echo "✓ TARGET ENVIRONMENT: ${params.TARGET_ENV.toUpperCase()}"
+          echo "✓ PROCEEDING WITH DEPLOYMENT..."
+          echo "═══════════════════════════════════════════════════════════"
+          echo ""
+          
+          currentBuild.displayName = "#${BUILD_NUMBER} - ${params.TARGET_ENV.toUpperCase()} ✓ Approved"
         }
       }
     }
