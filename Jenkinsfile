@@ -119,9 +119,9 @@ pipeline {
         script {
           try {
             installDeps()
-            // Skip local prisma generate - Docker build handles it (via Dockerfile)
-            // This saves ~10-15 seconds per build since Dockerfile already runs:
-            // RUN cd /app && npx prisma generate
+            // Skip prismaGenerate() here - Docker build handles it in Dockerfile
+            // This saves ~10-15 seconds per build
+            echo "✓ Dependencies installed (Prisma generation deferred to Docker build)"
           } catch (Exception e) {
             error("Setup failed: ${e.message}")
           }
