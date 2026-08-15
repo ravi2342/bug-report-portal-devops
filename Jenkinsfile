@@ -219,11 +219,20 @@ pipeline {
           try {
             timeout(time: 30, unit: 'MINUTES') {
               def env_name = params.TARGET_ENV.toUpperCase()
-              input message: "Approve deployment to ${env_name} environment?",
+              def approver = input message: "Approve deployment to ${env_name} environment?",
                 ok: "✓ Proceed with ${env_name}",
-                submitter: null
+                submitter: null,
+                parameters: []
+              
+              // Log approval once (Jenkins input step logs duplicates; we capture and log explicitly)
+              echo ""
+              echo "═══════════════════════════════════════════════════════════"
+              echo "✓ DEPLOYMENT APPROVED BY: ${approver}"
+              echo "✓ TARGET ENVIRONMENT: ${env_name}"
+              echo "✓ PROCEEDING WITH DEPLOYMENT..."
+              echo "═══════════════════════════════════════════════════════════"
+              echo ""
             }
-            echo "✓ Deployment approved - proceeding..."
             currentBuild.displayName = "#${BUILD_NUMBER} - ${params.TARGET_ENV.toUpperCase()} ✓ Approved"
           } catch (err) {
             currentBuild.result = 'ABORTED'
