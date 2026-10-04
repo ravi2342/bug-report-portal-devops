@@ -133,9 +133,19 @@ pipeline {
     // STAGE 6: QUALITY GATES (Lint & Tests)
     // ========================================
     stage('Quality Gates') {
+      options {
+        timeout(time: 20, unit: 'MINUTES')
+      }
       steps {
         script {
-          lintAndTest()
+          echo "🔍 Running lint and tests..."
+          try {
+            lintAndTest()
+            echo "✓ Lint and tests PASSED"
+          } catch (Exception e) {
+            echo "❌ Quality Gates failed: ${e.message}"
+            error("Lint or tests failed - code quality not acceptable")
+          }
         }
       }
     }
