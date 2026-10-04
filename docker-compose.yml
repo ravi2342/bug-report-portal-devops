@@ -30,8 +30,8 @@ services:
       SONAR_JDBC_PASSWORD: postgres
       SONAR_WEB_CONTEXT: /
       SONAR_WEB_PORT: 9000
-      # Elasticsearch tuning for faster Quality Gate processing
-      ES_JAVA_OPTS: "-Xms1g -Xmx1g"  # Increased from 512m to 1GB for better performance
+      # Elasticsearch tuning - increased for heavy analysis workloads
+      ES_JAVA_OPTS: "-Xms2g -Xmx2g -XX:+UseG1GC"  # Doubled from 1GB to 2GB with GC tuning
     ports:
       - "9000:9000"
     volumes:
@@ -43,8 +43,8 @@ services:
         condition: service_healthy
     networks:
       - ci-cd
-    mem_limit: 4g              # Hard limit: 4GB total SonarQube container
-    mem_reservation: 2.5g      # Soft limit: ask for 2.5GB
+    mem_limit: 6g              # Increased from 4GB to 6GB (total SonarQube container)
+    mem_reservation: 4g        # Increased from 2.5GB to 4GB (soft limit)
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9000/"]
       interval: 30s
@@ -62,7 +62,8 @@ services:
     environment:
       JENKINS_OPTS: "--prefix=/jenkins"
       # Aggressive memory tuning for pipeline performance
-      JAVA_OPTS: "-Xmx3g -Xms2g -XX:+UseG1GC -XX:MaxGCPauseMillis=30"
+      # Network timeouts to prevent GitHub API hangs
+      JAVA_OPTS: "-Xmx3g -Xms2g -XX:+UseG1GC -XX:MaxGCPauseMillis=30 -Dcom.sun.net.client.defaultConnectTimeout=5000 -Dcom.sun.net.client.defaultReadTimeout=5000"
       KUBECONFIG: /root/.kube/config
     ports:
       - "8080:8080"
