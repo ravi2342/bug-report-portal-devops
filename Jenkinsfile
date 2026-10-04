@@ -18,7 +18,7 @@ properties([
     string(name: 'DOCKER_IMAGE_PATH', defaultValue: 'demu147/bugreportportal', description: 'Docker image path (format: username/imagename). Default works for demo. Change if using different registry.'),
     booleanParam(name: 'DO_PUSH', defaultValue: false, description: 'Push Docker image to registry'),
     booleanParam(name: 'DO_DEPLOY', defaultValue: false, description: 'Deploy to Kubernetes'),
-    booleanParam(name: 'RUN_SONAR', defaultValue: false, description: 'Run SonarQube scan'),
+    booleanParam(name: 'RUN_SONAR', defaultValue: true, description: 'Run SonarQube code quality scan (runs on all branches including PRs)'),
     string(name: 'REGISTRY_CREDENTIALS_ID', defaultValue: 'dockerhub-creds-pat', description: 'Jenkins credentials ID for Docker Hub login'),
     string(name: 'SONAR_HOST_URL', defaultValue: 'http://sonarqube:9000', description: 'SonarQube URL (Local: http://sonarqube:9000, Cloud: https://sonarcloud.io)'),
     string(name: 'SONAR_PROJECT_KEY', defaultValue: 'bug-report-portal', description: 'SonarQube project key'),
@@ -35,7 +35,7 @@ pipeline {
   
   options {
     timestamps()
-    timeout(time: 1, unit: 'HOURS')
+    timeout(time: 2, unit: 'HOURS')
     buildDiscarder(logRotator(numToKeepStr: '10'))
   }
   
@@ -141,20 +141,33 @@ pipeline {
     }
     
     // ========================================
-    // STAGE 7: SONARQUBE SCAN (OPTIONAL)
+    // STAGE 7: SONARQUBE SCAN (REQUIRED FOR PR QUALITY GATES)
     // ========================================
-    stage('SonarQube Scan') {
+    stage('SonarQube PR Scan') {
       when {
         expression { params.RUN_SONAR && params.SONAR_HOST_URL?.trim() }
       }
+      options {
+        timeout(time: 45, unit: 'MINUTES')
+      }
       steps {
         script {
-          sonarScan(
-            hostUrl: params.SONAR_HOST_URL,
-            projectKey: params.SONAR_PROJECT_KEY,
-            tokenCredId: params.SONAR_TOKEN_CREDENTIALS_ID,
-            waitForQualityGate: true
-          )
+          echo "🔍 Running SonarQube quality scan for PR validation..."
+          try {
+            sonarScan(
+              hostUrl: params.SONAR_HOST_URL,
+              projectKey: params.SONAR_PROJECT_KEY,
+              tokenCredId: params.SONAR_TOKEN_CREDENTIALS_ID,
+              waitForQualityGate: true
+            )
+            echo "✓ SonarQube quality gate PASSED"
+          } catch (Exception e) {
+            echo "⚠ CRITICAL: SonarQube scan failed or timed out"
+            echo "Error: ${e.message}"
+            echo "This blocks PR merge - code quality gate not passed"
+            echo "Action: Check SonarQube at ${params.SONAR_HOST_URL}/dashboard?id=${params.SONAR_PROJECT_KEY}"
+            error("SonarQube quality gate failed - PR cannot merge without fixing")
+          }
         }
       }
     }
